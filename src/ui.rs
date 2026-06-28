@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 
 #[path = "data.rs"]
 mod data;
-use data::{DEFAUT_NB_ENFANTS, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
+use data::{DEFAUT_NB_ENFANTS, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
 
 // Gestion d'un fieldset:
 // - la légende peut être centrée ou alignée à gauche
@@ -33,7 +33,7 @@ fn Fieldset(legend: &'static str, optional: &'static str, center: bool, children
 fn Checkbox(id: &'static str, lab: &'static str, tooltip: &'static str, signal: WriteSignal<bool>, store: Option<Store<InputState>>) -> Element {
     rsx! {
         div { class: "tooltip-top tooltip",
-            span { class: "tooltip-text", {tooltip} }
+            span { class: "tooltip-text ml-12!", {tooltip} }
             input {
                 id,
                 class: "mx-2 my-1 accent-blue-50 dark:accent-blue-600",
@@ -41,7 +41,7 @@ fn Checkbox(id: &'static str, lab: &'static str, tooltip: &'static str, signal: 
                 onclick: move |_| {
                     signal.toggle();
                     // Recalcule le champ biens meublants si forfait mobilier est coché.
-                    gere_biens_meublants(store);
+                    gere_biens_meublants(store, true);
                 },
                 checked: signal,
             }
@@ -106,7 +106,7 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
             }
             // Puis effectue éventuellement un traitement global inter-champs
             if input_type == InputType::ResidencePrincipale || input_type == InputType::Placements {
-               gere_biens_meublants(store);
+               gere_biens_meublants(store, false);
             }
         };
         // Vérifie le champ caractère par caractère
@@ -174,7 +174,7 @@ fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
 }
 
 // Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de (RP + placements) en permanence
-fn gere_biens_meublants (store: Option<Store<InputState>>) {
+fn gere_biens_meublants (store: Option<Store<InputState>>, changement_mode: bool) {
     if let Some(store) = store {
         let forfait_mobilier = *store.forfait_mobilier().read();
         if forfait_mobilier {
@@ -183,6 +183,12 @@ fn gere_biens_meublants (store: Option<Store<InputState>>) {
             store
                 .biens_meublants()
                 .set((0.05 * (residence_principale + placements) as f64) as i32);
+        } else {
+            // si l'on vient de quitter le mode forfait alors il faut doubler sa valeur
+            // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
+            // au lieu de succession)
+            let biens_meublants = *store.biens_meublants().read();
+            store.biens_meublants().set(2*biens_meublants);
         }
     }
 }
@@ -191,6 +197,7 @@ fn gere_biens_meublants (store: Option<Store<InputState>>) {
 pub fn MainPart() -> Element {
     // Inputs et options
     let input = use_store(InputState::new);
+    let snapshot = use_store(InputState::new);
     // Outputs
     let result = use_store(ResultState::default);
     // Petite animation quand l'utilisateur click sur "Calculer"
@@ -210,6 +217,12 @@ pub fn MainPart() -> Element {
                         "tous les éléments sont communs (biens, dettes et fonds alimentant les placements et les donations)"
                     }
                     li { "les versements sur les assurances-vie ont été effectués avant 70 ans" }
+                    li {
+                        "les bénéficiaires des assurances-vie sont soit les enfants, soit le conjoint (puis les enfants au second décès)"
+                    }
+                    li {
+                        "les bénéficiaires des PER sont le conjoint (puis les enfants au second décès)"
+                    }
                 }
             }
             div { id: "inputs", class: "m-2 text-sm flex flex-wrap gap-4",
@@ -248,7 +261,7 @@ pub fn MainPart() -> Element {
                 InputWithLabel {
                     id: "biens-meublants",
                     lab: "Biens meublants",
-                    tooltip: "Pour intégration dans l'actif successoral net (plans civil et fiscal), forfait de 5% de l'actif successoral brut parfois admis.",
+                    tooltip: "Intégrés dans l'actif successoral (plan fiscal) si forfait mobilier ou dans l'actif de communauté (plans fiscal et civil) sinon",
                     signal: input.biens_meublants(),
                     store: Some(input),
                     input_type: InputType::BiensMeublants,
@@ -291,9 +304,9 @@ pub fn MainPart() -> Element {
                         InputWithoutLabel { id: "age_conjoint", signal: input.age_conjoint() }
                         div { class: "col-span-2 tooltip-top tooltip",
                             span { class: "tooltip-text w-70!",
-                                "AV du défunt transmise au survivant : aucune récompense n'est due."
+                                "AV défunt bénéfice survivant : aucune récompense n'est due."
                                 br {}
-                                "AV du survivant : il doit une récompense à la communauté."
+                                "AV survivant : le survivant doit une récompense à la communauté."
                             }
                             "AV bénéfice conjoint"
                         }
@@ -307,9 +320,9 @@ pub fn MainPart() -> Element {
                         }
                         div { class: "col-span-2 tooltip-top tooltip",
                             span { class: "tooltip-text w-66!",
-                                "AV du défunt transmise aux enfants : la communauté doit une récompense au survivant"
+                                "AV défunt bénéfice enfants : le défunt doit une récompense à la communauté (sauf si dispense)."
                                 br {}
-                                "AV du survivant : il doit une récompense à la communauté."
+                                "AV survivant : le survivant doit une récompense à la communauté."
                             }
                             "AV bénéfice enfants"
                         }
@@ -323,9 +336,9 @@ pub fn MainPart() -> Element {
                         }
                         div { class: "col-span-2 tooltip-top tooltip",
                             span { class: "tooltip-text w-75!",
-                                "PER du défunt transmis au survivant : il doit une récompense à la communauté."
+                                "PER défunt bénéfice survivant : aucune récompense n'est due."
                                 br {}
-                                "PER du survivant : il doit une récompense à la communauté."
+                                "PER survivant : aucune récompense n'est due."
                             }
                             "PER bénéfice conjoint"
                         }
@@ -377,6 +390,7 @@ pub fn MainPart() -> Element {
                         id: "résultats",
                         class: "md:px-2 px-0 pb-2 grid grid-cols-7 gap-x-0 md:gap-x-2 gap-y-0",
                         div { class: "mt-3",
+                            // TODO: Activer le bouton sur un retour-chariot
                             button {
                                 class: "px-3 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-800 dark:text-white",
                                 class: "border border-green-400 dark:border-white rounded-lg drop-shadow-md",
@@ -387,10 +401,8 @@ pub fn MainPart() -> Element {
                                     animate_click.set(true);
                                     let afficher_rapport = *input.afficher_rapport().read();
                                     // Appel du traitement de calcul de la succession
-                                    ResultState::store_compute(input, result);
-                                    // res.option_1_4_PP.to(option_1_4_PP);
-                                    // res.option_1_4_PP_3_4_US.to(option_1_4_PP_3_4_US);
-                                    // res.option_QD_PP.to(option_QD_PP);
+                                    ResultState::store_compute(input, snapshot, result);
+                                    // Affiche le rapport si demandé */
                                     if afficher_rapport {
                                         show_dialog.set(true);
                                     }
@@ -404,12 +416,18 @@ pub fn MainPart() -> Element {
                                 optional: "",
                                 center: true,
                                 div { class: "pl-2 grid grid-cols-2 items-stretch",
-                                    div {
+                                    div { class: "tooltip tooltip-top",
+                                        span { class: "tooltip-text w-65!",
+                                            "Valeur reçue en pleine-propriété par le conjoint survivant (hors usufruit), incluant les assurances-vie dont il est bénéficiaire."
+                                        }
                                         "Conjoint"
                                         br {}
                                         "survivant"
                                     }
-                                    div { class: "pl-4",
+                                    div { class: "pl-1 tooltip tooltip-top",
+                                        span { class: "tooltip-text w-65!",
+                                            "Valeur reçue en pleine-propriété par chaque enfant (hors nue-propriété), incluant les assurances-vie dont il est bénéficiaire."
+                                        }
                                         "Chaque"
                                         br {}
                                         "enfant"
@@ -422,7 +440,10 @@ pub fn MainPart() -> Element {
                                 legend: "2ème",
                                 optional: "décès",
                                 center: true,
-                                div { class: "pl-2",
+                                div { class: "pl-2 tooltip tooltip-top",
+                                    span { class: "tooltip-text w-65!",
+                                        "Valeur reçue en pleine-propriété par chaque enfant, incluant les assurances-vie dont il est bénéficiaire."
+                                    }
                                     "Chaque"
                                     br {}
                                     "enfant"
@@ -435,13 +456,24 @@ pub fn MainPart() -> Element {
                                 optional: "",
                                 center: true,
                                 div { class: "pl-2 grid grid-cols-3 items-end",
-                                    div {
+                                    div { class: "tooltip tooltip-top",
+                                        span { class: "tooltip-text w-65!",
+                                            "Valeur reçue en pleine-propriété par chaque enfant, incluant les assurances-vie dont il est bénéficiaire."
+                                        }
                                         "Chaque"
                                         br {}
                                         "enfant"
                                     }
-                                    div { class: "pl-5", "Etat" }
-                                    div { class: "pl-5", "Notaire" }
+                                    div { class: "pl-1 tooltip tooltip-top",
+                                        span { class: "tooltip-text", "Impôts reçus par l'Etat." }
+                                        "Etat"
+                                    }
+                                    div { class: "pl-2 tooltip tooltip-top",
+                                        span { class: "tooltip-text w-35!",
+                                            "Emoluments reçus par le notaire."
+                                        }
+                                        "Notaire"
+                                    }
                                 }
                             }
                         }
@@ -452,11 +484,11 @@ pub fn MainPart() -> Element {
                             "100% US"
                         }
                         div { class: "col-span-2 border-x border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
-                            Output { signal: result.option_totalite_us().premier_survivant() }
-                            Output { signal: result.option_totalite_us().premier_enfant() }
+                            Output { signal: result.option_totalite_us().premier_survivant().flux_financier_avec_av() }
+                            Output { signal: result.option_totalite_us().premier_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-1 border-x border-blue-300 dark:border-blue-700",
-                            Output { signal: result.option_totalite_us().deuxieme_enfant() }
+                            Output { signal: result.option_totalite_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-3 border-x border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_totalite_us().cumul_enfant() }
@@ -470,11 +502,11 @@ pub fn MainPart() -> Element {
                             "¼ PP"
                         }
                         div { class: "col-span-2 border-x border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
-                            Output { signal: result.option_1_4_pp().premier_survivant() }
-                            Output { signal: result.option_1_4_pp().premier_enfant() }
+                            Output { signal: result.option_1_4_pp().premier_survivant().flux_financier_avec_av() }
+                            Output { signal: result.option_1_4_pp().premier_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-1 border-x border-blue-300 dark:border-blue-700",
-                            Output { signal: result.option_1_4_pp().deuxieme_enfant() }
+                            Output { signal: result.option_1_4_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-3 border-x border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_1_4_pp().cumul_enfant() }
@@ -488,29 +520,30 @@ pub fn MainPart() -> Element {
                             "¼ PP ¾ US"
                         }
                         div { class: "col-span-2 border-x border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
-                            Output { signal: result.option_1_4_pp_3_4_us().premier_survivant() }
-                            Output { signal: result.option_1_4_pp_3_4_us().premier_enfant() }
+                            Output { signal: result.option_1_4_pp_3_4_us().premier_survivant().flux_financier_avec_av() }
+                            Output { signal: result.option_1_4_pp_3_4_us().premier_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-1 border-x border-blue-300 dark:border-blue-700",
-                            Output { signal: result.option_1_4_pp_3_4_us().deuxieme_enfant() }
+                            Output { signal: result.option_1_4_pp_3_4_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-3 border-x border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_1_4_pp_3_4_us().cumul_enfant() }
                             Output { signal: result.option_1_4_pp_3_4_us().cumul_etat() }
                             Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
                         }
+                        // Tooltip top au lieu de right pour éviter une bande blanche en bas
                         div { class: "tooltip-right tooltip",
-                            span { class: "tooltip-text",
+                            span { class: "tooltip-text w-50!",
                                 "Option quotité disponible en pleine propriété choisie par le conjoint survivant."
                             }
                             "QD PP"
                         }
                         div { class: "col-span-2 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
-                            Output { signal: result.option_qd_pp().premier_survivant() }
-                            Output { signal: result.option_qd_pp().premier_enfant() }
+                            Output { signal: result.option_qd_pp().premier_survivant().flux_financier_avec_av() }
+                            Output { signal: result.option_qd_pp().premier_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-1 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-700",
-                            Output { signal: result.option_qd_pp().deuxieme_enfant() }
+                            Output { signal: result.option_qd_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
                         div { class: "col-span-3 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_qd_pp().cumul_enfant() }
@@ -530,8 +563,8 @@ fn Dialog(show_dialog: Signal<bool>) -> Element {
     rsx! {
         div {
             id: "rapport",
-            class: if show_dialog() { "block" } else { "hidden" },
-            class: "fixed inset-1/10 bg-green-200",
+            class: if show_dialog() { "relative" } else { "hidden" },
+            class: "bg-green-200",
             div {
                 div {
                     div { "TODO" }

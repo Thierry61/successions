@@ -6,15 +6,17 @@
 /* To toggle dark mode, add the 'dark' class to the root element of your HTML document. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Both are needed so that the page covers the whole window */
+/* Height rules in body an #main selector are needed to avoid a white band at the botom of page */
 body {
     height: 100vh;
-    width: 100vw;
-    min-width: 600px;
 }
 #main {
     height: 100%;
-    width: 100%;
+}
+
+/* min-width rule is needed to leave room for most right tooltip */
+body {
+    min-width: 650px;
 }
 
 /* Remove the spin buttons from number input fields in WebKit and Mozilla browsers */
@@ -38,7 +40,7 @@ body {
 }
 /* Common properties for tooltip text inside container */
 .tooltip .tooltip-text {
-    visibility: hidden;
+    display: none;
     width: 180px;
     background-color: #888;
     color: #fff;
@@ -62,7 +64,7 @@ body {
 }
 /* Specifics properties for top tooltip */
 .tooltip-top.tooltip .tooltip-text {
-    left: 18px;
+    left: 10px;
     bottom: calc(100% + 6px); /* Percentage of container height */
 }
 /* Specific properties for bottom arrow of top tooltip */
@@ -98,6 +100,7 @@ body {
   Tooltips are applicable on element with tooltip class
 */
 .tooltip:hover .tooltip-text {
+    display: inline;
     visibility: visible;
     opacity: 1;
 }

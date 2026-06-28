@@ -36,6 +36,7 @@ fn Body(children: Element) -> Element {
                     class: "bg-blue-100 dark:bg-blue-900",
                     class: "flex flex-row items-center justify-between",
                     span { class: "m-3 font-semibold", "Simulation de successions" }
+                    // TODO: ajouter un bouton pour activer/désactiver les tooltips
                     button {
                         class: "rounded-md border border-blue-400 bg-blue-50 dark:bg-blue-500 px-3 py-1 m-3",
                         class: "tooltip-left tooltip",

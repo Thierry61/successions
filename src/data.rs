@@ -54,17 +54,86 @@ impl InputState {
             per_conjoint: *store.per_conjoint().read(),
         }
     }
+    // Idem pour cette fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
+    pub fn to(&self, store: Store<InputState>) {
+        store.nb_enfants().set(self.nb_enfants);
+        store.dettes().set(self.dettes);
+        store.residence_principale().set(self.residence_principale);
+        store.placements().set(self.placements);
+        store.biens_meublants().set(self.biens_meublants);
+        store.frais_funeraires().set(self.frais_funeraires);
+        store.donations_partages().set(self.donations_partages);
+        store.forfait_mobilier().set(self.forfait_mobilier);
+        store.ordre_deces().set(self.ordre_deces);
+        store.dispense_recompense().set(self.dispense_recompense);
+        store.ignorer_couts_partage().set(self.ignorer_couts_partage);
+        store.afficher_rapport().set(self.afficher_rapport);
+        store.age_vous().set(self.age_vous);
+        store.age_conjoint().set(self.age_conjoint);
+        store.av_vous_conjoint().set(self.av_vous_conjoint);
+        store.av_conjoint_conjoint().set(self.av_conjoint_conjoint);
+        store.av_vous_enfants().set(self.av_vous_enfants);
+        store.av_conjoint_enfants().set(self.av_conjoint_enfants);
+        store.per_vous().set(self.per_vous);
+        store.per_conjoint().set(self.per_conjoint);
+    }
+}
+
+// Bénéficiaire d'une assurance-vie
+#[derive(Store, Default)]
+pub struct BeneficiaireState {
+    brut: i32,
+    abattement: i32,
+    taxable: i32,
+    prelevement: i32,
+    net: i32,
+}
+impl BeneficiaireState {
+    // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
+    pub fn to(&self, store: Store<BeneficiaireState>) {
+        store.brut().set(self.brut);
+        store.abattement().set(self.abattement);
+        store.taxable().set(self.taxable);
+        store.prelevement().set(self.prelevement);
+        store.net().set(self.net);
+    }
+}
+
+// Heritier dans une succession. Attention : Ne pas regrouper avec la notion de bénéficiaire
+// car le premier dépend de l'option choisie, mais pas le second.
+#[derive(Store, Default)]
+pub struct HeritierState {
+    // TODO: d'autres champs
+    heritage_net: i32,
+    flux_financier: i32,
+    flux_financier_avec_av: i32,
+}
+impl HeritierState {
+    // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
+    pub fn to(&self, store: Store<HeritierState>) {
+        store.heritage_net().set(self.heritage_net);
+        store.flux_financier().set(self.flux_financier);
+        store.flux_financier_avec_av().set(self.flux_financier_avec_av);
+    }
 }
 
 // Résultat du calcul pour une option choisie par le conjoint survivant
 // ("totalite en US", "1/4 en PP", "1/4_PP et 3/4 en US" ou "quotité disponible en PP")
 #[derive(Store, Default)]
 pub struct OptionState {
-    premier_survivant: i32,
-    premier_enfant: i32,
+    // Données du premier décès
+    premier_survivant: HeritierState,
+    premier_enfant: HeritierState,
+    premier_total: HeritierState,
     premier_etat: i32,
     premier_notaire: i32,
-    deuxieme_enfant: i32,
+    // Données du deuxième décès
+    deuxieme_us_survivant: i32,
+    deuxieme_pp_survivant: i32,
+    deuxieme_actif_net_succession_civil: i32,
+    deuxieme_actif_net_succession_fiscal: i32,
+    deuxieme_enfant: HeritierState,
+    deuxieme_total: HeritierState,
     deuxieme_etat: i32,
     deuxieme_notaire: i32,
     cumul_enfant: i32,
@@ -72,13 +141,19 @@ pub struct OptionState {
     cumul_notaire: i32,
 }
 impl OptionState {
-    // Pareil ici: fonction codée en dur pour réinitialiser le store à partir de sa structure sous-jacente
+    // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
     pub fn to(&self, store: Store<OptionState>) {
-        store.premier_survivant().set(self.premier_survivant);
-        store.premier_enfant().set(self.premier_enfant);
+        self.premier_survivant.to(store.premier_survivant().into());
+        self.premier_enfant.to(store.premier_enfant().into());
+        self.premier_total.to(store.premier_total().into());
         store.premier_etat().set(self.premier_etat);
         store.premier_notaire().set(self.premier_notaire);
-        store.deuxieme_enfant().set(self.deuxieme_enfant);
+        store.deuxieme_us_survivant().set(self.deuxieme_us_survivant);
+        store.deuxieme_pp_survivant().set(self.deuxieme_pp_survivant);
+        store.deuxieme_actif_net_succession_civil().set(self.deuxieme_actif_net_succession_civil);
+        store.deuxieme_actif_net_succession_fiscal().set(self.deuxieme_actif_net_succession_fiscal);
+        self.deuxieme_enfant.to(store.deuxieme_enfant().into());
+        self.deuxieme_total.to(store.deuxieme_total().into());
         store.deuxieme_etat().set(self.deuxieme_etat);
         store.deuxieme_notaire().set(self.deuxieme_notaire);
         store.cumul_enfant().set(self.cumul_enfant);
@@ -87,7 +162,7 @@ impl OptionState {
     }
     // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
     fn cumul(&mut self) {
-        self.cumul_enfant = self.premier_enfant + self.deuxieme_enfant;
+        self.cumul_enfant = self.premier_enfant.flux_financier_avec_av + self.deuxieme_enfant.flux_financier_avec_av;
         self.cumul_etat = self.premier_etat + self.deuxieme_etat;
         self.cumul_notaire = self.premier_notaire + self.deuxieme_notaire;
     }
@@ -122,32 +197,98 @@ impl FractionnementPropriete {
     }
 }
 
+// Concernant les récompenses, voici le résumé des échanges sur le forum MoneyVox :
+// - AV du conjoint survivant : le survivant conserve son contrat mais il doit une récompense à la communauté (sur le plan fiscal civil uniquement)
+// - PERin du conjoint survivant : le survivant conserve son contrat sans devoir de récompense à la communauté (le contrat est un propre du survivant)
+// - AV ou PERin du défunt au bénéfice du conjoint : pas de récompenses dues (le capital devient un propre du survivant)
+// - AV du défunt au bénéfice des enfants : le défunt doit une récompense à la communauté (sauf si le survivant a proposé une dispense de récompense)
+// Nota :
+// - toutes les récompenses gérées sont dues à la communauté et sont donc inscrites à l'actif de la communauté
+// - en parallèle elle sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
+
+#[derive(Store, Default)]
+pub struct PremierDeces {
+    recompense_due_par_le_survivant: i32,
+    recompense_due_par_le_defunt: i32,
+    actif_brut_communaute: i32,
+    solde_recompenses: i32,
+    actif_net_communaute: i32,
+    actif_net_communaute_ajuste: i32,
+    actif_brut_succession: i32,
+    actif_net_succession: i32,
+    part_survivant_hors_succession: i32,
+}
+impl PremierDeces {
+    pub fn to(&self, store: Store<PremierDeces>) {
+        store.recompense_due_par_le_survivant().set(self.recompense_due_par_le_survivant);
+        store.recompense_due_par_le_defunt().set(self.recompense_due_par_le_defunt);
+        store.actif_brut_communaute().set(self.actif_brut_communaute);
+        store.solde_recompenses().set(self.solde_recompenses);
+        store.actif_net_communaute().set(self.actif_net_communaute);
+        store.actif_net_communaute_ajuste().set(self.actif_net_communaute_ajuste);
+        store.actif_brut_succession().set(self.actif_brut_succession);
+        store.actif_net_succession().set(self.actif_net_succession);
+        store.part_survivant_hors_succession().set(self.part_survivant_hors_succession);
+    }
+}
+
 #[derive(Store, Default)]
 pub struct ResultState {
+    premier_deces_civil: PremierDeces,
+    premier_deces_fiscal: PremierDeces,
+    // Valeur AV reçue par le conjoint survivant
+    premier_av_survivant: BeneficiaireState,
+    // Valeur AV reçue par chaque enfant au 1er décès
+    premier_av_enfant: BeneficiaireState,
+    premier_av_total: BeneficiaireState,
+    // Contrats AV en propre détenus par le conjoint survivant
+    deuxieme_av_survivant: i32,
+    // Valeur AV reçue par chaque enfant au 2ème décès
+    deuxieme_av_enfant: BeneficiaireState,
+    deuxieme_av_total: BeneficiaireState,
     option_totalite_us: OptionState,
     option_1_4_pp: OptionState,
     option_1_4_pp_3_4_us: OptionState,
     option_qd_pp: OptionState,
 }
 impl ResultState {
+    // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
+    pub fn to(&self, store: Store<ResultState>) {
+        self.premier_deces_civil.to(store.premier_deces_civil().into());
+        self.premier_deces_fiscal.to(store.premier_deces_fiscal().into());
+        self.premier_av_survivant.to(store.premier_av_survivant().into());
+        self.premier_av_enfant.to(store.premier_av_enfant().into());
+        self.premier_av_total.to(store.premier_av_total().into());
+        store.deuxieme_av_survivant().set(self.deuxieme_av_survivant);
+        self.deuxieme_av_enfant.to(store.deuxieme_av_enfant().into());
+        self.deuxieme_av_total.to(store.deuxieme_av_total().into());
+        self.option_totalite_us.to(store.option_totalite_us().into());
+        self.option_1_4_pp.to(store.option_1_4_pp().into());
+        self.option_1_4_pp_3_4_us.to(store.option_1_4_pp_3_4_us().into());
+        self.option_qd_pp.to(store.option_qd_pp().into());
+    }
     // Wrapper du calcul au niveaux des store
-    pub fn store_compute(store_input: Store<InputState>, store_result: Store<ResultState>) {
+    pub fn store_compute(store_input: Store<InputState>, snapshot_input: Store<InputState>, store_result: Store<ResultState>) {
+        // Copie figée des inputs (pour que le rapport ne soit pas moodifié après génération)
+        let snapshot = InputState::from(store_input);
+        snapshot.to(snapshot_input);
+
         // Initialisation des résultats à 0
         let mut result = ResultState::default();
+
         // Récupération des données sous-jacentes au store des entrées
         let input = InputState::from(store_input);
+
         // Calcul des résultats
         Self::compute(input, &mut result);
+
         // Surcharge du store des résultats
-        result.option_totalite_us.to(store_result.option_totalite_us().into());
-        result.option_1_4_pp.to(store_result.option_1_4_pp().into());
-        result.option_1_4_pp_3_4_us.to(store_result.option_1_4_pp_3_4_us().into());
-        result.option_qd_pp.to(store_result.option_qd_pp().into());
+        result.to(store_result);
     }
     // Calcul au niveau des structures sous-jacentes
     fn compute(input: InputState, result: &mut ResultState) {
         // Traitement de test. TODO: faire le vrai calcul
-        result.option_totalite_us.premier_enfant = input.per_conjoint;
+        result.option_totalite_us.premier_enfant.flux_financier_avec_av = input.per_conjoint;
 
         // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
         result.option_totalite_us.cumul();
