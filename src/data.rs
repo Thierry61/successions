@@ -15,15 +15,14 @@ pub struct InputState {
     ordre_deces: bool,
     dispense_recompense: bool,
     ignorer_couts_partage: bool,
-    afficher_rapport: bool,
     age_vous: i32,
     age_conjoint: i32,
     av_vous_conjoint: i32,
     av_conjoint_conjoint: i32,
     av_vous_enfants: i32,
     av_conjoint_enfants: i32,
-    per_vous: i32,
-    per_conjoint: i32,
+    per_vous_conjoint: i32,
+    per_conjoint_conjoint: i32,
 }
 impl InputState {
     pub fn new () -> Self {
@@ -43,15 +42,14 @@ impl InputState {
             ordre_deces: *store.ordre_deces().read(),
             dispense_recompense: *store.dispense_recompense().read(),
             ignorer_couts_partage: *store.ignorer_couts_partage().read(),
-            afficher_rapport: *store.afficher_rapport().read(),
             age_vous: *store.age_vous().read(),
             age_conjoint: *store.age_conjoint().read(),
             av_vous_conjoint: *store.av_vous_conjoint().read(),
             av_conjoint_conjoint: *store.av_conjoint_conjoint().read(),
             av_vous_enfants: *store.av_vous_enfants().read(),
             av_conjoint_enfants: *store.av_conjoint_enfants().read(),
-            per_vous: *store.per_vous().read(),
-            per_conjoint: *store.per_conjoint().read(),
+            per_vous_conjoint: *store.per_vous_conjoint().read(),
+            per_conjoint_conjoint: *store.per_conjoint_conjoint().read(),
         }
     }
     // Idem pour cette fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
@@ -67,15 +65,14 @@ impl InputState {
         store.ordre_deces().set(self.ordre_deces);
         store.dispense_recompense().set(self.dispense_recompense);
         store.ignorer_couts_partage().set(self.ignorer_couts_partage);
-        store.afficher_rapport().set(self.afficher_rapport);
         store.age_vous().set(self.age_vous);
         store.age_conjoint().set(self.age_conjoint);
         store.av_vous_conjoint().set(self.av_vous_conjoint);
         store.av_conjoint_conjoint().set(self.av_conjoint_conjoint);
         store.av_vous_enfants().set(self.av_vous_enfants);
         store.av_conjoint_enfants().set(self.av_conjoint_enfants);
-        store.per_vous().set(self.per_vous);
-        store.per_conjoint().set(self.per_conjoint);
+        store.per_vous_conjoint().set(self.per_vous_conjoint);
+        store.per_conjoint_conjoint().set(self.per_conjoint_conjoint);
     }
 }
 
@@ -269,7 +266,7 @@ impl ResultState {
     }
     // Wrapper du calcul au niveaux des store
     pub fn store_compute(store_input: Store<InputState>, snapshot_input: Store<InputState>, store_result: Store<ResultState>) {
-        // Copie figée des inputs (pour que le rapport ne soit pas moodifié après génération)
+        // Copie figée des inputs (pour que le rapport ne soit pas modifié après génération)
         let snapshot = InputState::from(store_input);
         snapshot.to(snapshot_input);
 
@@ -288,7 +285,7 @@ impl ResultState {
     // Calcul au niveau des structures sous-jacentes
     fn compute(input: InputState, result: &mut ResultState) {
         // Traitement de test. TODO: faire le vrai calcul
-        result.option_totalite_us.premier_enfant.flux_financier_avec_av = input.per_conjoint;
+        result.option_totalite_us.premier_enfant.flux_financier_avec_av = input.per_conjoint_conjoint;
 
         // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
         result.option_totalite_us.cumul();

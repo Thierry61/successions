@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+mod data;
+mod report;
 mod ui;
 use ui::MainPart;
 

@@ -1,12 +1,11 @@
 use dioxus::prelude::*;
 
-#[path = "data.rs"]
-mod data;
-use data::{DEFAUT_NB_ENFANTS, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
+use crate::report::Rapport;
+use crate::data::{DEFAUT_NB_ENFANTS, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
 
 // Gestion d'un fieldset:
 // - la légende peut être centrée ou alignée à gauche
-// - une partie de la légende est masquée quand l'écran est petit
+// - une partie de la légende peut être masquée quand l'écran est petit
 #[component]
 fn Fieldset(legend: &'static str, optional: &'static str, center: bool, children: Element) -> Element {
     rsx! {
@@ -184,11 +183,13 @@ fn gere_biens_meublants (store: Option<Store<InputState>>, changement_mode: bool
                 .biens_meublants()
                 .set((0.05 * (residence_principale + placements) as f64) as i32);
         } else {
-            // si l'on vient de quitter le mode forfait alors il faut doubler sa valeur
-            // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
-            // au lieu de succession)
-            let biens_meublants = *store.biens_meublants().read();
-            store.biens_meublants().set(2*biens_meublants);
+            if changement_mode {
+                // si l'on vient de quitter le mode forfait alors il faut doubler les biens meublants
+                // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
+                // au lieu d'un actif de succession)
+                let biens_meublants = *store.biens_meublants().read();
+                store.biens_meublants().set(2*biens_meublants);
+            }
         }
     }
 }
@@ -202,11 +203,14 @@ pub fn MainPart() -> Element {
     let result = use_store(ResultState::default);
     // Petite animation quand l'utilisateur click sur "Calculer"
     let mut animate_click = use_signal(|| false);
-    // Affiche et ferme le rapport
-    let mut show_dialog = use_signal(|| false);
+    // Affiche le rapport dès qu'un calcul à été lancé
+    let mut show_report = use_signal(|| false);
 
     rsx! {
-        div {
+        // Une forme est nécessaire pour déclencher le calcul en entrant un retour-chariot sur n'importe quel champ.
+        form {
+            // L'action javascript évite le rechargement de la page provoqué par la forme.
+            action: "javascript:void(0);",
             div { class: "m-3",
                 "Hypothèses principales :"
                 ul { class: "ml-5 list-disc list-outside",
@@ -342,8 +346,14 @@ pub fn MainPart() -> Element {
                             }
                             "PER bénéfice conjoint"
                         }
-                        InputWithoutLabel { id: "per_vous", signal: input.per_vous() }
-                        InputWithoutLabel { id: "per_conjoint", signal: input.per_conjoint() }
+                        InputWithoutLabel {
+                            id: "per_vous_conjoint",
+                            signal: input.per_vous_conjoint(),
+                        }
+                        InputWithoutLabel {
+                            id: "per_conjoint_conjoint",
+                            signal: input.per_conjoint_conjoint(),
+                        }
                     }
                 }
                 Fieldset { legend: "Options", optional: "", center: false,
@@ -376,13 +386,6 @@ pub fn MainPart() -> Element {
                             signal: input.ignorer_couts_partage(),
                             store: None,
                         }
-                        Checkbox {
-                            id: "Afficher rapport",
-                            lab: "Afficher un rapport.",
-                            tooltip: "Afficher un rapport quand un calcul est lancé.",
-                            signal: input.afficher_rapport(),
-                            store: None,
-                        }
                     }
                 }
                 Fieldset { legend: "Résultats", optional: "", center: false,
@@ -390,22 +393,18 @@ pub fn MainPart() -> Element {
                         id: "résultats",
                         class: "md:px-2 px-0 pb-2 grid grid-cols-7 gap-x-0 md:gap-x-2 gap-y-0",
                         div { class: "mt-3",
-                            // TODO: Activer le bouton sur un retour-chariot
                             button {
-                                class: "px-3 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-800 dark:text-white",
+                                class: "px-3 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
                                 class: "border border-green-400 dark:border-white rounded-lg drop-shadow-md",
                                 class: "transition duration-200",
                                 class: if animate_click() { "-translate-y-1 scale-110" },
                                 ontransitionend: move |_| { animate_click.set(false) },
                                 onclick: move |_| {
                                     animate_click.set(true);
-                                    let afficher_rapport = *input.afficher_rapport().read();
                                     // Appel du traitement de calcul de la succession
                                     ResultState::store_compute(input, snapshot, result);
-                                    // Affiche le rapport si demandé */
-                                    if afficher_rapport {
-                                        show_dialog.set(true);
-                                    }
+                                    // Affiche le rapport
+                                    show_report.set(true);
                                 },
                                 "Calculer"
                             }
@@ -553,30 +552,7 @@ pub fn MainPart() -> Element {
                     }
                 }
             }
-            Dialog { show_dialog }
-        }
-    }
-}
-
-#[component]
-fn Dialog(show_dialog: Signal<bool>) -> Element {
-    rsx! {
-        div {
-            id: "rapport",
-            class: if show_dialog() { "relative" } else { "hidden" },
-            class: "bg-green-200",
-            div {
-                div {
-                    div { "TODO" }
-                    button {
-                        class: "bg-red-200",
-                        onclick: move |_| {
-                            show_dialog.set(false);
-                        },
-                        "Close"
-                    }
-                }
-            }
+            Rapport { snapshot, result, show_report }
         }
     }
 }
