@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::data::{InputState, InputStateStoreExt, ResultState, ResultStateStoreExt};
+use crate::data::{InputState, InputStateStoreExt, PremierDecesStoreExt, ResultState, ResultStateStoreExt};
 
 // Formate un nombre en lui ajoutant le symbol € et des blancs comme séparateur de milliers
 #[component]
@@ -42,7 +42,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
             }
             div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
                 h1 { class: "font-bold", "Données d'entrée :" }
-                div { class: "w-170 grid grid-cols-2 gap-2 justify-items-start",
+                div { class: "grid grid-cols-2 gap-2 justify-items-start",
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
 
@@ -87,21 +87,17 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                     }
                 }
                 br {}
-                div { class: "",
+                div {
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
-                            li { "Age des époux :" }
+                            li { class: "list-none text-right opacity-0", "Epoux : " }
+                            li { "Age :" }
                             li { "AV au bénéfice du conjoint :" }
                             li { "AV au bénéfice des enfants :" }
                             li { "PER bénéfice du conjoint :" }
                         }
                         ul {
-                            li { "vous :" }
-                            li { "vous :" }
-                            li { "vous :" }
-                            li { "vous :" }
-                        }
-                        ul {
+                            li { class: "text-center", "Vous" }
                             li { class: "text-right",
                                 Nb { num: snapshot.age_vous() }
                             }
@@ -116,12 +112,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                             }
                         }
                         ul {
-                            li { "votre conjoint :" }
-                            li { "votre conjoint :" }
-                            li { "votre conjoint :" }
-                            li { "votre conjoint :" }
-                        }
-                        ul {
+                            li { class: "text-center", "Conjoint" }
                             li { class: "text-right",
                                 Nb { num: snapshot.age_conjoint() }
                             }
@@ -138,7 +129,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                     }
                 }
                 br {}
-                div { class: "w-170 grid grid-cols-2 gap-2 justify-items-start",
+                div { class: "grid grid-cols-2 gap-2 justify-items-start",
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
 
@@ -181,9 +172,84 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                     }
                 }
             }
-            div { class: "p-2",
-                h1 { class: "font-semibold", "Calcul succession :" }
-                div { class: "", "TODO" }
+            div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+                h1 { class: "font-bold", "Calcul succession :" }
+                div {
+                    div { class: "flex flex-row gap-4",
+                        ul { class: "ml-5 list-disc list-outside",
+                            li { class: "list-none text-right opacity-0", "Plan : " }
+                            li { "Actif brut de communauté :" }
+                            li { "Récompense due par le survivant :" }
+                            li { "Récompense due par le défunt :" }
+                            li { "Actif net de communauté :" }
+                            li { "Solde de récompenses :" }
+                            li { "Actif net de communauté après récompenses :" }
+                            li { "Actif brut de succession :" }
+                            li { "Actif net de succession :" }
+                            li { "Part du survivant hors succession :" }
+                        }
+                        ul {
+                            li { class: "text-center", "Civil" }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().actif_brut_communaute() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().recompense_due_par_le_survivant() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().recompense_due_par_le_defunt() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().actif_net_communaute() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().solde_recompenses() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().actif_net_communaute_ajuste() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().actif_brut_succession() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().actif_net_succession() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_civil().part_survivant_hors_succession() }
+                            }
+                        }
+                        ul {
+                            li { class: "text-center", "Fiscal" }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().actif_brut_communaute() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().recompense_due_par_le_survivant() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().recompense_due_par_le_defunt() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().actif_net_communaute() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().solde_recompenses() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().actif_net_communaute_ajuste() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().actif_brut_succession() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().actif_net_succession() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_deces_fiscal().part_survivant_hors_succession() }
+                            }
+                        }
+                    }
+                }
             }
             details {
                 class: "p-2 border-y border-transparent open:border-black/10 open:bg-gray-100 dark:open:bg-gray-600",

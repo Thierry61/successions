@@ -1,5 +1,8 @@
 use dioxus::prelude::*;
 
+mod compute;
+use crate::data::compute::compute;
+
 pub const DEFAUT_NB_ENFANTS: i32 = 2;
 
 #[derive(Store, Default)]
@@ -101,6 +104,20 @@ impl BeneficiaireState {
 #[derive(Store, Default)]
 pub struct HeritierState {
     // TODO: d'autres champs
+    // Champs pour le 1er décès
+    heritage_pp: i32,
+    heritage_np: i32,
+    heritage_us: i32,
+    // Champ pour le 2ème décès
+    extinction_us: i32,
+    // Champs communs aux 2 décès
+    part_civile: i32,
+    part_fiscale: i32,
+    abattement: i32,
+    taxable: i32,
+    droits_succession: i32,
+    droits_partage: i32,
+    emoluments_partage: i32,
     heritage_net: i32,
     flux_financier: i32,
     flux_financier_avec_av: i32,
@@ -108,6 +125,17 @@ pub struct HeritierState {
 impl HeritierState {
     // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
     pub fn to(&self, store: Store<HeritierState>) {
+        store.heritage_pp().set(self.heritage_pp);
+        store.heritage_np().set(self.heritage_np);
+        store.heritage_us().set(self.heritage_us);
+        store.extinction_us().set(self.extinction_us);
+        store.part_civile().set(self.part_civile);
+        store.part_fiscale().set(self.part_fiscale);
+        store.abattement().set(self.abattement);
+        store.taxable().set(self.taxable);
+        store.droits_succession().set(self.droits_succession);
+        store.droits_partage().set(self.droits_partage);
+        store.emoluments_partage().set(self.emoluments_partage);
         store.heritage_net().set(self.heritage_net);
         store.flux_financier().set(self.flux_financier);
         store.flux_financier_avec_av().set(self.flux_financier_avec_av);
@@ -158,7 +186,7 @@ impl OptionState {
         store.cumul_notaire().set(self.cumul_notaire);
     }
     // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
-    fn cumul(&mut self) {
+    pub fn cumul(&mut self) {
         self.cumul_enfant = self.premier_enfant.flux_financier_avec_av + self.deuxieme_enfant.flux_financier_avec_av;
         self.cumul_etat = self.premier_etat + self.deuxieme_etat;
         self.cumul_notaire = self.premier_notaire + self.deuxieme_notaire;
@@ -201,7 +229,7 @@ impl FractionnementPropriete {
 // - AV du défunt au bénéfice des enfants : le défunt doit une récompense à la communauté (sauf si le survivant a proposé une dispense de récompense)
 // Nota :
 // - toutes les récompenses gérées sont dues à la communauté et sont donc inscrites à l'actif de la communauté
-// - en parallèle elle sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
+// - en parallèle elles sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
 
 #[derive(Store, Default)]
 pub struct PremierDeces {
@@ -277,168 +305,9 @@ impl ResultState {
         let input = InputState::from(store_input);
 
         // Calcul des résultats
-        Self::compute(input, &mut result);
+        compute(input, &mut result);
 
         // Surcharge du store des résultats
         result.to(store_result);
     }
-    // Calcul au niveau des structures sous-jacentes
-    fn compute(input: InputState, result: &mut ResultState) {
-        // Traitement de test. TODO: faire le vrai calcul
-        result.option_totalite_us.premier_enfant.flux_financier_avec_av = input.per_conjoint_conjoint;
-
-        // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
-        result.option_totalite_us.cumul();
-        result.option_1_4_pp.cumul();
-        result.option_1_4_pp_3_4_us.cumul();
-        result.option_qd_pp.cumul();
-    }
-}
-
-// Droits de succession en ligne direct sur la part taxable après abattement de 100 000 €
-fn droits_en_ligne_direct(part: f64) -> f64 {
-    let res = if part<=8_072.0 {
-            part*0.05
-        } else {
-            8_072.0*0.05 + if part<=12_109.0 {
-                (part-8_072.0)*0.10
-            } else {
-                (12_109.0-8_072.0)*0.10 + if part<=15_932.0 {
-                    (part-12_109.0)*0.15
-                } else {
-                    (15_932.0-12_109.0)*0.15 + if part<=552_324.0 {
-                        (part-15_932.0)*0.20
-                    } else {
-                        (552_324.0-15_932.0)*0.20 + if part<=902_838.0 {
-                            (part-552_324.0)*0.30
-                        } else {
-                            (902_838.0-552_324.0)*0.30 + if part<=1_805_677.0 {
-                                (part-902_838.0)*0.40
-                            } else {
-                                (1_805_677.0-902_838.0)*0.40+(part-1_805_677.0)*0.45 } } } } } };
-    // Arrondi au centime
-    (res*100.0).round()/100.0
-}
-
-// Prélèvements sur une assurance-vie au dela de l'abattement de 152 500 €
-// (cf. https://www.impots.gouv.fr/international-particulier/questions/je-suis-beneficiaire-dune-assurance-vie-comment-sont-imposees)
-fn prelevements_assurance_vie(part: f64) -> f64 {
-    let res = if part<=700_000.0 {
-        part*0.2
-    } else {
-        700_000.0*0.2+(part-700_000.0)*0.3125
-    };
-    // Arrondi au centime
-    (res*100.0).round()/100.0
-}
-
-// Emoluments du notaire (cf. https://www.service-public.gouv.fr/particuliers/vosdroits/F795
-// et https://blog.qoridor.fr/article/emoluments-notaire-succession-bareme-2026)
-fn partage_succession(part: f64) -> f64 {
-    let res = if part<=6_500.0 {
-        4.837*part
-    } else {
-        4.837*6_500.0 + if part<=17_000.0 {
-            1.995*(part-6_500.0)
-        } else {
-            1.995*(17_000.0-6_500.0) + if part<=60_000.0 {
-                1.33*(part-17_000.0)
-            } else {
-                1.33*(60_000.0-17_000.0)+0.998*(part-60_000.0)
-            }
-        }
-    };
-    // Division par 100 car les coefficients sont des pourcentages
-    let res = res/100.0;
-    // Ajout de la TVA à 20%
-    let res = 1.2 * res;
-    // Arrondi au centime
-    (res*100.0).round()/100.0
-}
-fn declaration_succession(part: f64) -> f64 {
-    let res = if part<=6_500.0 {
-        1.548*part
-    } else {
-        1.548*6_500.0 + if part<=17_000.0 {
-            0.851*(part-6_500.0)
-        } else {
-            0.851*(17_000.0-6_500.0) + if part<=30_000.0 {
-                0.58*(part-17_000.0)
-            } else {
-                0.58*(30_000.0-17_000.0)+0.426*(part-30_000.0)
-            }
-        }
-    };
-    // Division par 100 car les coefficients sont des pourcentages
-    let res = res/100.0;
-    // Ajout de la TVA à 20%
-    let res = 1.2 * res;
-    // Arrondi au centime
-    (res*100.0).round()/100.0
-}
-
-#[test]
-fn test_fractionnement() {
-    for t in [(1,2),(2,3),(3,4),(4,4)] {
-        let fractionnement = FractionnementPropriete::new_qd_pp(t.0);
-        assert_eq!(fractionnement.pp_survivant, 1.0/t.1 as f64);
-        assert_eq!(fractionnement.us_survivant, 0.0);
-    }
-}
-
-// Je ne suis pas sûr qu'il soit nécessaire de convertir les centimes en entiers
-// mais c'est plus prudent pour comparer des floats. Une autre façon de faire serait
-// de comparer la valeur absolue de la différence avec un epsilon mais cela impliquerait
-// l'usage de assert! qui est moins bien que assert_eq! (en cas d'erreur des tests).
-#[cfg(test)]
-fn to_cents(x: f64) -> i64 {
-    (x * 100.0).round() as i64
-}
-
-#[test]
-fn test_droits_en_ligne_direct() {
-    // Données du test provenant de https://www.service-public.gouv.fr/simulateur/calcul/droits-succession#main
-    // (sauf les centimes que j'ai récupérés des tests eux-mêmes !)
-    assert_eq!(to_cents(droits_en_ligne_direct(1_000.0)), 50_00);
-    assert_eq!(to_cents(droits_en_ligne_direct(10_000.0)), 596_40);
-    assert_eq!(to_cents(droits_en_ligne_direct(14_000.0)), 1_090_95);
-    assert_eq!(to_cents(droits_en_ligne_direct(100_000.0)), 18_194_35);
-    assert_eq!(to_cents(droits_en_ligne_direct(800_000.0)), 182_961_95);
-    assert_eq!(to_cents(droits_en_ligne_direct(1_000_000.0)), 252_678_15);
-    assert_eq!(to_cents(droits_en_ligne_direct(2_000_000.0)), 662_394_30);
-}
-
-#[test]
-fn test_prelevements_assurance_vie () {
-    assert_eq!(to_cents(prelevements_assurance_vie(47_500.0)), 9_500_00);
-    assert_eq!(to_cents(prelevements_assurance_vie(700_000.0)), 140_000_00);
-    assert_eq!(to_cents(prelevements_assurance_vie(747_500.0)), 154_843_75);
-}
-
-#[test]
-fn test_emoluments_partage_succession() {
-    // Valeurs dans chaque tranche
-    assert_eq!(to_cents(partage_succession(3_000.0)), 174_13);
-    assert_eq!(to_cents(partage_succession(10_000.0)), 461_08);
-    assert_eq!(to_cents(partage_succession(30_000.0)), 836_14);
-    assert_eq!(to_cents(partage_succession(100_000.0)), 1_793_98);
-
-    // Bornes exactes
-    assert_eq!(to_cents(partage_succession(6_500.0)), 377_29);
-    assert_eq!(to_cents(partage_succession(17_000.0)), 628_66);
-    assert_eq!(to_cents(partage_succession(60_000.0)), 1_314_94);
-}
-
-#[test]
-fn test_emoluments_declaration_succession() {
-    // Valeurs dans chaque tranche
-    assert_eq!(to_cents(declaration_succession(3_000.0)), 55_73);
-    assert_eq!(to_cents(declaration_succession(10_000.0)), 156_49);
-    assert_eq!(to_cents(declaration_succession(20_000.0)), 248_85);
-    assert_eq!(to_cents(declaration_succession(100_000.0)), 676_29);
-
-    // Bornes exactes
-    assert_eq!(to_cents(declaration_succession(6_500.0)), 120_74);
-    assert_eq!(to_cents(declaration_succession(17_000.0)), 227_97);
-    assert_eq!(to_cents(declaration_succession(30_000.0)), 318_45);
 }

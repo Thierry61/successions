@@ -6,7 +6,7 @@
 /* To toggle dark mode, add the 'dark' class to the root element of your HTML document. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Height rules in body an #main selector are needed to avoid a white band at the botom of page */
+/* Height rules in body and #main selector are needed to avoid a white band at the bottom of page */
 body {
     height: 100vh;
 }
