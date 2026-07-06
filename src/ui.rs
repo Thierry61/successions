@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::report::Rapport;
-use crate::data::{DEFAUT_NB_ENFANTS, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
+use crate::data::{DEFAUT_NB_ENFANTS, REMISE_RP_FISCALE, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
 
 // Gestion d'un fieldset:
 // - la légende peut être centrée ou alignée à gauche
@@ -172,23 +172,24 @@ fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
     }
 }
 
-// Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de (RP + placements) en permanence
+// Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de l'actif brut successoral en permanence
 fn gere_biens_meublants (store: Option<Store<InputState>>, changement_mode: bool) {
     if let Some(store) = store {
         let forfait_mobilier = *store.forfait_mobilier().read();
         if forfait_mobilier {
             let residence_principale = *store.residence_principale().read();
             let placements = *store.placements().read();
+            let dettes = *store.dettes().read();
             store
                 .biens_meublants()
-                .set((0.05 * (residence_principale + placements) as f64) as i32);
+                .set(((0.05 * (residence_principale as f64 * (1.0 - REMISE_RP_FISCALE) + placements as f64 - dettes as f64)) / 2.0) as i32);
         } else {
             if changement_mode {
-                // si l'on vient de quitter le mode forfait alors il faut doubler les biens meublants
+                // Traitement erroné qui était effectué en quittant le mode forfait : doubler les biens meublants
                 // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
                 // au lieu d'un actif de succession)
-                let biens_meublants = *store.biens_meublants().read();
-                store.biens_meublants().set(2*biens_meublants);
+                // let biens_meublants = *store.biens_meublants().read();
+                // store.biens_meublants().set(2*biens_meublants);
             }
         }
     }
@@ -265,7 +266,7 @@ pub fn MainPart() -> Element {
                 InputWithLabel {
                     id: "biens-meublants",
                     lab: "Biens meublants",
-                    tooltip: "Intégrés dans l'actif successoral (plan fiscal) si forfait mobilier ou dans l'actif de communauté (plans fiscal et civil) sinon",
+                    tooltip: "Intégrés dans l'actif successoral uniquement sur le plan fiscal si forfait mobilier ou sur les 2 plans (fiscal et civil) sinon",
                     signal: input.biens_meublants(),
                     store: Some(input),
                     input_type: InputType::BiensMeublants,

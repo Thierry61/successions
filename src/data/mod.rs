@@ -3,7 +3,10 @@ use dioxus::prelude::*;
 mod compute;
 use crate::data::compute::compute;
 
+pub const FORFAIT_FRAIS_FUNERAIRES : i32 = 1500;
+pub const REMISE_RP_FISCALE : f64 = 0.2;
 pub const DEFAUT_NB_ENFANTS: i32 = 2;
+pub const ABATTEMENT_AV: i32 = 152_500;
 
 #[derive(Store, Default)]
 pub struct InputState {
@@ -266,8 +269,6 @@ pub struct ResultState {
     // Valeur AV reçue par chaque enfant au 1er décès
     premier_av_enfant: BeneficiaireState,
     premier_av_total: BeneficiaireState,
-    // Contrats AV en propre détenus par le conjoint survivant
-    deuxieme_av_survivant: i32,
     // Valeur AV reçue par chaque enfant au 2ème décès
     deuxieme_av_enfant: BeneficiaireState,
     deuxieme_av_total: BeneficiaireState,
@@ -284,7 +285,6 @@ impl ResultState {
         self.premier_av_survivant.to(store.premier_av_survivant().into());
         self.premier_av_enfant.to(store.premier_av_enfant().into());
         self.premier_av_total.to(store.premier_av_total().into());
-        store.deuxieme_av_survivant().set(self.deuxieme_av_survivant);
         self.deuxieme_av_enfant.to(store.deuxieme_av_enfant().into());
         self.deuxieme_av_total.to(store.deuxieme_av_total().into());
         self.option_totalite_us.to(store.option_totalite_us().into());

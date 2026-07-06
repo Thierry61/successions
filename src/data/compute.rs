@@ -1,11 +1,11 @@
-use crate::data::{InputState, ResultState, FractionnementPropriete};
+use std::cmp;
 
-const FORFAIT_FRAIS_FUNERAIRES : i32 = 1500;
-const REMISE_RP_FISCALE : f64 = 0.2;
+use crate::data::{ABATTEMENT_AV, BeneficiaireState, FORFAIT_FRAIS_FUNERAIRES, REMISE_RP_FISCALE};
+use crate::data::{InputState, ResultState, FractionnementPropriete};
 
 // Calcul au niveau des structures sous-jacentes
 pub fn compute(input: InputState, result: &mut ResultState) {
-    // Si le conjoint survivant a une AV alors il la conserve mais il doit une récompense à la communauté.
+    // Si le conjoint survivant a des AV alors il les conserve mais il doit une récompense à la communauté.
     // (au civil uniquement)
     let av = if input.ordre_deces {
         // Le survivant est votre conjoint
@@ -14,9 +14,10 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         // Vous êtes le survivant
         input.av_vous_conjoint + input.av_vous_enfants
     };
-    result.deuxieme_av_survivant = av;
     result.premier_deces_civil.recompense_due_par_le_survivant = av;
     result.premier_deces_civil.solde_recompenses += av;
+    // Ces AV seront transmises aux enfants au 2eme décès
+    calcul_beneficiaire(&mut result.deuxieme_av_enfant, av / input.nb_enfants);
 
     // Si le défunt avait une AV au bénéfice des enfants alors ceux-ci reçoivent le capital mais le défunt doit une récompense à la communauté,
     // sauf si le survivant formalise une dispense de récompense avec le notaire.
@@ -28,13 +29,14 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         // Votre conjoint est le défunt
         input.av_conjoint_enfants
     };
-    result.premier_av_enfant.brut = av / input.nb_enfants;
     if !input.dispense_recompense {
         result.premier_deces_civil.recompense_due_par_le_defunt = av;
         result.premier_deces_civil.solde_recompenses += av;
         result.premier_deces_fiscal.recompense_due_par_le_defunt = av;
         result.premier_deces_fiscal.solde_recompenses += av;
     }
+    // Cette AV est transmise aux enfants
+    calcul_beneficiaire(&mut result.premier_av_enfant, av / input.nb_enfants);
 
     // Si le défunt avait une AV au bénéfice du conjoint alors celui-ci reçoit le capital sans qu'une récompense soit due.
     let av = if input.ordre_deces {
@@ -44,10 +46,13 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         // Votre conjoint est le défunt
         input.av_conjoint_conjoint
     };
+    // Cette AV est transmise au survivant
     result.premier_av_survivant.brut = av;
+    result.premier_av_survivant.net = av;
 
     // Cumul des AV transmises aux bénéficiaires
-    result.premier_av_total.brut = result.premier_av_enfant.brut * input.nb_enfants + result.premier_av_survivant.brut;
+    calcul_beneficiaire_total(&mut result.premier_av_total, &result.premier_av_enfant, input.nb_enfants, Some(&result.premier_av_survivant));
+    calcul_beneficiaire_total(&mut result.deuxieme_av_total, &result.deuxieme_av_enfant, input.nb_enfants, None);
 
     // Actif brut de communauté : RP + placements hors AV/PER + biens meublants si le forfait mobilier n'est pas utilisé.
     // (au civil et au fiscal avec un remise de 20% sur la RP au fiscal)
@@ -142,6 +147,29 @@ fn prelevements_assurance_vie(part: f64) -> f64 {
     (res*100.0).round()/100.0
 }
 
+fn calcul_beneficiaire(beneficiaire: &mut BeneficiaireState, brut: i32) {
+    beneficiaire.brut = brut;
+    beneficiaire.abattement = cmp::min(brut, ABATTEMENT_AV);
+    beneficiaire.taxable = brut - beneficiaire.abattement;
+    beneficiaire.prelevement = prelevements_assurance_vie(beneficiaire.taxable as f64) as i32;
+    beneficiaire.net = beneficiaire.brut - beneficiaire.prelevement;
+}
+
+fn calcul_beneficiaire_total(total: &mut BeneficiaireState, enfant: &BeneficiaireState, nb_enfants: i32, survivant: Option<&BeneficiaireState>) {
+    total.brut = enfant.brut * nb_enfants;
+    total.abattement = enfant.abattement * nb_enfants;
+    total.taxable = enfant.taxable * nb_enfants;
+    total.prelevement = enfant.prelevement * nb_enfants;
+    total.net = enfant.net * nb_enfants;
+    if let Some(survivant) = survivant {
+         total.brut += survivant.brut;
+         total.abattement += survivant.abattement;
+         total.taxable += survivant.taxable;
+         total.prelevement += survivant.prelevement;
+         total.net += survivant.net;
+    }
+}
+
 // Emoluments du notaire (cf. https://www.service-public.gouv.fr/particuliers/vosdroits/F795
 // et https://blog.qoridor.fr/article/emoluments-notaire-succession-bareme-2026)
 fn partage_succession(part: f64) -> f64 {
@@ -165,6 +193,7 @@ fn partage_succession(part: f64) -> f64 {
     // Arrondi au centime
     (res*100.0).round()/100.0
 }
+
 fn declaration_succession(part: f64) -> f64 {
     let res = if part<=6_500.0 {
         1.548*part

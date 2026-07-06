@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::data::{InputState, InputStateStoreExt, PremierDecesStoreExt, ResultState, ResultStateStoreExt};
+use crate::data::{BeneficiaireStateStoreExt, InputState, InputStateStoreExt, PremierDecesStoreExt, ResultState, ResultStateStoreExt};
 
 // Formate un nombre en lui ajoutant le symbol € et des blancs comme séparateur de milliers
 #[component]
@@ -42,7 +42,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
             }
             div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
                 h1 { class: "font-bold", "Données d'entrée :" }
-                div { class: "grid grid-cols-2 gap-2 justify-items-start",
+                div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
 
@@ -129,7 +129,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                     }
                 }
                 br {}
-                div { class: "grid grid-cols-2 gap-2 justify-items-start",
+                div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
 
@@ -246,6 +246,153 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                             }
                             li { class: "text-right",
                                 Euros { val: result.premier_deces_fiscal().part_survivant_hors_succession() }
+                            }
+                        }
+                    }
+                }
+            }
+            div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+                h1 { class: "font-bold", "Assurances-vie 1er décès :" }
+                div {
+                    div { class: "flex flex-row gap-6",
+                        ul { class: "ml-5 list-disc list-outside",
+                            li { class: "h-12 list-none text-right opacity-0", "Bénéficiaire : " }
+                            li { "Capitaux décès bruts :" }
+                            li { "Abattement :" }
+                            li { "Part taxable :" }
+                            li { "Prélèvements :" }
+                            li { "Capitaux décès nets :" }
+                        }
+                        ul {
+                            li { class: "text-center",
+                                div {
+                                    br {}
+                                    "Survivant"
+                                }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().brut() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().abattement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().taxable() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().prelevement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().net() }
+                            }
+                        }
+                        ul {
+                            li { class: "text-center",
+                                div {
+                                    "Chaque"
+                                    br {}
+                                    "enfant"
+                                }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_enfant().brut() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_enfant().abattement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_enfant().taxable() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_enfant().prelevement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_enfant().net() }
+                            }
+                        }
+                        ul {
+                            li { class: "text-center",
+                                div {
+                                    br {}
+                                    "Total"
+                                }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_total().brut() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_total().abattement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_total().taxable() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_total().prelevement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_total().net() }
+                            }
+                        }
+                    }
+                }
+            }
+            div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+                h1 { class: "font-bold", "Assurances-vie 2ème décès :" }
+                div {
+                    div { class: "flex flex-row gap-6",
+                        ul { class: "ml-5 list-disc list-outside",
+                            li { class: "h-12 list-none text-right opacity-0", "Bénéficiaire : " }
+                            li { "Capitaux décès bruts :" }
+                            li { "Abattement :" }
+                            li { "Part taxable :" }
+                            li { "Prélèvements :" }
+                            li { "Capitaux décès nets :" }
+                        }
+                        ul {
+                            li { class: "text-center",
+                                div {
+                                    "Chaque"
+                                    br {}
+                                    "enfant"
+                                }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_enfant().brut() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_enfant().abattement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_enfant().taxable() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_enfant().prelevement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_enfant().net() }
+                            }
+                        }
+                        ul {
+                            li { class: "text-center",
+                                div {
+                                    br {}
+                                    "Total"
+                                }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_total().brut() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_total().abattement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_total().taxable() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_total().prelevement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.deuxieme_av_total().net() }
                             }
                         }
                     }
