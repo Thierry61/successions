@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::report::Rapport;
-use crate::data::{DEFAUT_NB_ENFANTS, REMISE_RP_FISCALE, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
+use crate::data::{calcul_biens_meublants, DEFAUT_NB_ENFANTS, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
 
 // Gestion d'un fieldset:
 // - la légende peut être centrée ou alignée à gauche
@@ -70,38 +70,40 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
         false
     });
     // Traitement des événements oninput et onchange. La différence entre les 2
-    // est que le premier ne remplace pas un champ vide par la valeur par défaut.
+    // est que le premier ne supprime pas une série de 0 à gauche.
     let mut manage_input_and_change = move |e: Event<FormData>, is_change: bool| {
+            if !e.valid() && !is_change {
+                e.prevent_default();
+                return;
+            }
             // Récupère la valeur saisie
             let new_val = e.value();
-            if new_val.is_empty() {
-                if is_change {
-                    // On met la valeur par défaut à la place d'un champ vide.
-                    signal
-                        .set(
-                            if input_type == InputType::NbEnfants {
-                                DEFAUT_NB_ENFANTS
-                            } else {
-                                i32::default()
-                            },
-                    );
-                } else {
-                    // Ne fait rien on mode input si le champ est vide.
-                    // On ne met pas la valeur par défaut à la place
-                    // du champ vide pour ne pas perturber l'utilisateur.
-                    // (mais cela sera fait ultérieurement à l'étape change)
-                    return;
-                }
+            // Stocke la nouvelle valeur saisie sauf en mode input si le premier chiffre à gauche vaut 0
+            // pour que l'utilisateur se soit pas supris de voir disparaitre une série de 0 à gauche
+            // alors qu'il voulait juste remplacer le chiffre le plus signicatif (par exemple il voulait
+            // remplacer 30000 par 40000, en effacant le 3 et en tapant 4 à la place).
+            if !is_change && new_val.starts_with('0') {
+                return;
+            }
+            // On met la valeur par défaut à la place d'un champ vide en mode onchange
+            if new_val.is_empty() && is_change {
+                signal
+                    .set(
+                        if input_type == InputType::NbEnfants {
+                            DEFAUT_NB_ENFANTS
+                        } else {
+                            i32::default()
+                        }
+                );
             } else {
-                // Stocke la nouvelle valeur saisie sauf en mode input si le premier chiffre à gauche vaut 0
-                // pour que l'utilisateur se soit pas supris de voir disparaitre une série de 0 à gauche
-                // alors qu'il voulait juste remplacer le chiffre le plus signicatif (par exemple il voulait
-                // remplacer 30000 par 40000, en effacant le 3 et en tapant 4 à la place).
-                if !is_change && new_val.starts_with('0') {
-                    return;
+                // Le unwrap_or remet la valeur courante si la nouvelle valeur est invalide ou négative
+                let unsigned_old_val = signal() as u32;
+                let mut unsigned_new_val : u32 = new_val.parse().unwrap_or(unsigned_old_val);
+                // Idem si le nb d'enfants vaut 0
+                if input_type == InputType::NbEnfants && unsigned_new_val == 0 {
+                    unsigned_new_val = unsigned_old_val;
                 }
-                // Le unwrap_or remet la valeur courante si la nouvelle valeur est invalide.
-                signal.set(new_val.parse().unwrap_or(signal()));
+                *signal.write() = unsigned_new_val as i32;
             }
             // Puis effectue éventuellement un traitement global inter-champs
             if input_type == InputType::ResidencePrincipale || input_type == InputType::Placements {
@@ -122,7 +124,8 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
             class: "remove-arrow",
             r#type: "number",
-            min: "0",
+            min: if input_type == InputType::NbEnfants { "1" } else { "0" },
+            pattern: "[0-9]+",
             disabled,
             // Les 2 sont nécessaires pour gérer correctement le double effacement du dernier caractère.
             oninput: manage_input,
@@ -173,7 +176,7 @@ fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
 }
 
 // Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de l'actif brut successoral en permanence
-fn gere_biens_meublants (store: Option<Store<InputState>>, changement_mode: bool) {
+fn gere_biens_meublants(store: Option<Store<InputState>>, changement_mode: bool) {
     if let Some(store) = store {
         let forfait_mobilier = *store.forfait_mobilier().read();
         if forfait_mobilier {
@@ -182,7 +185,7 @@ fn gere_biens_meublants (store: Option<Store<InputState>>, changement_mode: bool
             let dettes = *store.dettes().read();
             store
                 .biens_meublants()
-                .set(((0.05 * (residence_principale as f64 * (1.0 - REMISE_RP_FISCALE) + placements as f64 - dettes as f64)) / 2.0) as i32);
+                .set(calcul_biens_meublants(residence_principale, placements, dettes));
         } else {
             if changement_mode {
                 // Traitement erroné qui était effectué en quittant le mode forfait : doubler les biens meublants
@@ -196,22 +199,22 @@ fn gere_biens_meublants (store: Option<Store<InputState>>, changement_mode: bool
 }
 
 #[component]
-pub fn MainPart() -> Element {
+pub fn MainPart(cookies: String) -> Element {
     // Inputs et options
-    let input = use_store(InputState::new);
+    let input = use_store(|| InputState::new_from_cookies(&cookies));
     let snapshot = use_store(InputState::new);
     // Outputs
     let result = use_store(ResultState::default);
     // Petite animation quand l'utilisateur click sur "Calculer"
     let mut animate_click = use_signal(|| false);
-    // Affiche le rapport dès qu'un calcul à été lancé
+    // Affiche le rapport dès qu'un calcul a été lancé
     let mut show_report = use_signal(|| false);
 
     rsx! {
+        // Décommenter la ligne suivante pour debugger les cookies
+        // "Cookies: {cookies}"
         // Une forme est nécessaire pour déclencher le calcul en entrant un retour-chariot sur n'importe quel champ.
         form {
-            // L'action javascript évite le rechargement de la page provoqué par la forme.
-            action: "javascript:void(0);",
             div { class: "m-3",
                 "Hypothèses principales :"
                 ul { class: "ml-5 list-disc list-outside",
@@ -288,7 +291,7 @@ pub fn MainPart() -> Element {
                     input_type: InputType::Autres,
                 }
             }
-            div { class: "ml-2 flex flex-wrap gap-4",
+            div { class: "ml-2 mb-2 flex flex-wrap gap-4",
                 Fieldset {
                     legend: "Données du couple",
                     optional: "",
@@ -399,14 +402,20 @@ pub fn MainPart() -> Element {
                                 class: "border border-green-400 dark:border-white rounded-lg drop-shadow-md",
                                 class: "transition duration-200",
                                 class: if animate_click() { "-translate-y-1 scale-110" },
+                                class: "tooltip tooltip-top",
                                 ontransitionend: move |_| { animate_click.set(false) },
-                                onclick: move |_| {
+                                onclick: move |event| {
                                     animate_click.set(true);
                                     // Appel du traitement de calcul de la succession
                                     ResultState::store_compute(input, snapshot, result);
                                     // Affiche le rapport
                                     show_report.set(true);
+                                    // Evite le rechargement de la page provoqué par la forme
+                                    event.prevent_default();
                                 },
+                                span { class: "tooltip-text",
+                                    "Lance le calcul de la succession et mémorise les données d'entrée."
+                                }
                                 "Calculer"
                             }
                         }

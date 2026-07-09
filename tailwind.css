@@ -100,6 +100,8 @@ body {
   Tooltips are applicable on element with tooltip class
 */
 .tooltip:hover .tooltip-text {
+    /* Restaure normal font in case the container uses a bold font */
+    font-weight: 400;
     display: inline;
     visibility: visible;
     opacity: 1;

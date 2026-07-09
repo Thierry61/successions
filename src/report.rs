@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 
 use crate::data::{BeneficiaireStateStoreExt, InputState, InputStateStoreExt, PremierDecesStoreExt, ResultState, ResultStateStoreExt};
 
-// Formate un nombre en lui ajoutant le symbol € et des blancs comme séparateur de milliers
+// Formate un nombre en lui ajoutant le symbol € et des blancs comme séparateurs de milliers
 #[component]
 fn Euros (val: ReadSignal<i32>) -> Element {
     let num = val.to_string()
@@ -19,7 +19,7 @@ fn Euros (val: ReadSignal<i32>) -> Element {
 }
 
 // Formate un nombre en réservant la place pour le symbol € sans l'afficher
-// (pour allgner les chiffres avec ceux des valeurs en euros)
+// (pour aligner les chiffres avec ceux des valeurs en euros)
 #[component]
 fn Nb (num: ReadSignal<i32>) -> Element {
     rsx! {
@@ -36,7 +36,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
         details {
             class: "border-y border-transparent open:border-black/10 open:bg-gray-100 dark:open:bg-gray-600 text-gray-900 dark:text-white",
             class: if show_report() { " block" } else { "hidden" },
-            open: "false",
+            open: "true",
             summary { class: "m-2 text-sm leading-6 font-semibold select-none",
                 "Détails du dernier calcul :"
             }
@@ -94,7 +94,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                             li { "Age :" }
                             li { "AV au bénéfice du conjoint :" }
                             li { "AV au bénéfice des enfants :" }
-                            li { "PER bénéfice du conjoint :" }
+                            li { "PER au bénéfice du conjoint :" }
                         }
                         ul {
                             li { class: "text-center", "Vous" }

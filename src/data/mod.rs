@@ -8,6 +8,54 @@ pub const REMISE_RP_FISCALE : f64 = 0.2;
 pub const DEFAUT_NB_ENFANTS: i32 = 2;
 pub const ABATTEMENT_AV: i32 = 152_500;
 
+// Execute une commande javascript
+fn execute_js(js: String) {
+    use_future(move || {
+        let js = js.clone();
+        async move {
+            let eval = document::eval(&js);
+            let _ = eval.await;
+        }
+    });
+}
+
+// Crée un cookie ou le détruit si la valeur est la valeur par défaut de l'entrée
+// (plus exactement ajoute dans la variable js l'instruction javascript effectuant cette action)
+fn set_cookie(js: &mut String, name: &'static str, val: i32, default_val: i32) {
+    // 400 days is the upper limit for Max-Age attribute (see https://developer.chrome.com/blog/cookie-max-age-expires)
+    let max_age = 400 * 24 * 3600;
+    if val != default_val {
+        // Crée le cookie
+        js.push_str(&format!(r#"document.cookie = "{name}={val}; Max-Age={max_age}"; "#));
+    } else  {
+        // Détruit le cookie en lui donnant une date d'expiration dans le passé
+        js.push_str(&format!(r#"document.cookie = "{name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"; "#));
+    }
+}
+
+#[test]
+fn test_set_cookie() {
+    let max_age = 400 * 24 * 3600;
+    assert_eq!(max_age, 34560000);
+    let mut js = String::new();
+    set_cookie(&mut js, "nb_enfants", 3, 2);
+    set_cookie(&mut js, "dettes", 0, 0);
+    let expected = format!(r#"document.cookie = "nb_enfants=3; Max-Age=34560000"; document.cookie = "dettes=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"; "#);
+    assert_eq!(&js, &expected)
+}
+
+// Calcul des biens meublants lorsque le forfait mobilier est utilisé
+// (5% de l'actif successoral brut)
+pub fn calcul_biens_meublants(residence_principale: i32, placements: i32, dettes: i32) -> i32 {
+    ((0.05 * (residence_principale as f64 * (1.0 - REMISE_RP_FISCALE) + placements as f64 - dettes as f64)) / 2.0) as i32
+}
+
+#[test]
+fn test_calcul_biens_meublants() {
+    assert_eq!(calcul_biens_meublants(200_000, 180_000, 0), 8_500);
+    assert_eq!(calcul_biens_meublants(200_000, 180_000, 20_000), 8_000);
+}
+
 #[derive(Store, Default)]
 pub struct InputState {
     nb_enfants: i32,
@@ -31,8 +79,50 @@ pub struct InputState {
     per_conjoint_conjoint: i32,
 }
 impl InputState {
+    // Génère une structure avec les valeurs par défaut
     pub fn new () -> Self {
         Self { nb_enfants: DEFAUT_NB_ENFANTS, forfait_mobilier: true, ordre_deces: true, dispense_recompense: true, ..Default::default() }
+    }
+    // Génère une structure avec les valeurs par défaut surchargées par la valeur des cookies
+    pub fn new_from_cookies (cookies: &str) -> Self {
+        let mut ret = Self::new();
+        for cookie in cookies.split(';') {
+            let cookie = cookie.trim();
+            let vec: Vec<_> = cookie.split('=').collect();
+            if vec.len() != 2 {
+                continue;
+            }
+            let name = vec[0].trim();
+            let val = vec[1].trim();
+            match name {
+                "nb_enfants" => if let Ok(val) = val.parse() { ret.nb_enfants = val; }
+                "dettes" => if let Ok(val) = val.parse() { ret.dettes = val; }
+                "residence_principale" => if let Ok(val) = val.parse() { ret.residence_principale = val; }
+                "placements" => if let Ok(val) = val.parse() { ret.placements = val; }
+                "biens_meublants" => if let Ok(val) = val.parse() { ret.biens_meublants = val; }
+                "frais_funeraires" => if let Ok(val) = val.parse() { ret.frais_funeraires = val; }
+                "donations_partages" => if let Ok(val) = val.parse() { ret.donations_partages = val; }
+                "forfait_mobilier" => if let Ok(val) = val.parse::<i32>() { ret.forfait_mobilier = val == 1; }
+                "ordre_deces" => if let Ok(val) = val.parse::<i32>() { ret.ordre_deces = val == 1; }
+                "dispense_recompense" => if let Ok(val) = val.parse::<i32>() { ret.dispense_recompense = val == 1; }
+                "ignorer_couts_partage" => if let Ok(val) = val.parse::<i32>() { ret.ignorer_couts_partage = val == 1; }
+                "age_vous" => if let Ok(val) = val.parse() { ret.age_vous = val; }
+                "age_conjoint" => if let Ok(val) = val.parse() { ret.age_conjoint = val; }
+                "av_vous_conjoint" => if let Ok(val) = val.parse() { ret.av_vous_conjoint = val; }
+                "av_conjoint_conjoint" => if let Ok(val) = val.parse() { ret.av_conjoint_conjoint = val; }
+                "av_vous_enfants" => if let Ok(val) = val.parse() { ret.av_vous_enfants = val; }
+                "av_conjoint_enfants" => if let Ok(val) = val.parse() { ret.av_conjoint_enfants = val; }
+                "per_vous_conjoint" => if let Ok(val) = val.parse() { ret.per_vous_conjoint = val; }
+                "per_conjoint_conjoint" => if let Ok(val) = val.parse() { ret.per_conjoint_conjoint = val; }
+                _ => continue,
+            }
+            // On recalcule les biens meublants si le forfait mobilier est utilisé
+            // (dès fois que le cookie biens meublants soit erroné)
+            if ret.forfait_mobilier {
+                ret.biens_meublants = calcul_biens_meublants (ret.residence_principale, ret.placements, ret.dettes);
+            }
+        }
+        ret
     }
     // J'ai codé en dur cette fonction car je n'ai pas trouvé de moyen de reconstruire automatiquement la structure sous-jacente au store
     pub fn from (store: Store<InputState>) -> Self {
@@ -80,6 +170,42 @@ impl InputState {
         store.per_vous_conjoint().set(self.per_vous_conjoint);
         store.per_conjoint_conjoint().set(self.per_conjoint_conjoint);
     }
+    // Idem pour cette fonction codée en dur pour sauvergarder les entrées dans des cookies
+    pub fn to_cookies(store: Store<InputState>) {
+        let def = InputState::new();
+        let mut js = String::new();
+        set_cookie(&mut js, "nb_enfants", *store.nb_enfants().read(), def.nb_enfants);
+        set_cookie(&mut js, "dettes", *store.dettes().read(), def.dettes);
+        set_cookie(&mut js, "residence_principale", *store.residence_principale().read(), def.residence_principale);
+        set_cookie(&mut js, "placements", *store.placements().read(), def.placements);
+        set_cookie(&mut js, "biens_meublants", *store.biens_meublants().read(), def.biens_meublants);
+        set_cookie(&mut js, "frais_funeraires", *store.frais_funeraires().read(), def.frais_funeraires);
+        set_cookie(&mut js, "donations_partages", *store.donations_partages().read(), def.donations_partages);
+        set_cookie(&mut js, "forfait_mobilier", if *store.forfait_mobilier().read() { 1 } else { 0 }, if def.forfait_mobilier { 1 } else { 0 });
+        set_cookie(&mut js, "ordre_deces", if *store.ordre_deces().read() { 1 } else { 0 }, if def.ordre_deces { 1 } else { 0 });
+        set_cookie(&mut js, "dispense_recompense", if *store.dispense_recompense().read() { 1 } else { 0 }, if def.dispense_recompense { 1 } else { 0 });
+        set_cookie(&mut js, "ignorer_couts_partage", if *store.ignorer_couts_partage().read() { 1 } else { 0 }, if def.ignorer_couts_partage { 1 } else { 0 });
+        set_cookie(&mut js, "age_vous", *store.age_vous().read(), def.age_vous);
+        set_cookie(&mut js, "age_conjoint", *store.age_conjoint().read(), def.age_conjoint);
+        set_cookie(&mut js, "av_vous_conjoint", *store.av_vous_conjoint().read(), def.av_vous_conjoint);
+        set_cookie(&mut js, "av_conjoint_conjoint", *store.av_conjoint_conjoint().read(), def.av_conjoint_conjoint);
+        set_cookie(&mut js, "av_vous_enfants", *store.av_vous_enfants().read(), def.av_vous_enfants);
+        set_cookie(&mut js, "av_conjoint_enfants", *store.av_conjoint_enfants().read(), def.av_conjoint_enfants);
+        set_cookie(&mut js, "per_vous_conjoint", *store.per_vous_conjoint().read(), def.per_vous_conjoint);
+        set_cookie(&mut js, "per_conjoint_conjoint", *store.per_conjoint_conjoint().read(), def.per_conjoint_conjoint);
+        execute_js(js);
+    }
+}
+
+#[test]
+fn test_new_from_cookies() {
+    let cookies = "nb_enfants=3; dettes=180; forfait_mobilier=0; dispense_recompense=1";
+    let input = InputState::new_from_cookies(cookies);
+    assert_eq!(input.residence_principale, 0);
+    assert_eq!(input.nb_enfants, 3);
+    assert_eq!(input.dettes, 180);
+    assert_eq!(input.forfait_mobilier, false);
+    assert_eq!(input.dispense_recompense, true);
 }
 
 // Bénéficiaire d'une assurance-vie
@@ -106,7 +232,6 @@ impl BeneficiaireState {
 // car le premier dépend de l'option choisie, mais pas le second.
 #[derive(Store, Default)]
 pub struct HeritierState {
-    // TODO: d'autres champs
     // Champs pour le 1er décès
     heritage_pp: i32,
     heritage_np: i32,
@@ -297,6 +422,9 @@ impl ResultState {
         // Copie figée des inputs (pour que le rapport ne soit pas modifié après génération)
         let snapshot = InputState::from(store_input);
         snapshot.to(snapshot_input);
+
+        // Sauvegarde des entrées dans des cookies
+        InputState::to_cookies(store_input);
 
         // Initialisation des résultats à 0
         let mut result = ResultState::default();

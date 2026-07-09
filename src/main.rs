@@ -7,7 +7,7 @@ use ui::MainPart;
 
 static TAILWIND: Asset = asset!("/assets/tailwind.css");
 static MOON: Asset = asset!("/assets/moon.svg");
-static SUN: Asset = asset!("/assets/sun.svg");  
+static SUN: Asset = asset!("/assets/sun.svg");
 
 fn main() {
     dioxus::launch(App);
@@ -15,9 +15,25 @@ fn main() {
 
 #[component]
 fn App() -> Element {
-    rsx! {
-        document::Stylesheet { href: TAILWIND }
-        Body { MainPart {} }
+    // Lit les cookies présents dans le browser pour intialiser les entrées
+    let future = use_resource(move || async move {
+        let mut eval = document::eval("dioxus.send(document.cookie);");
+        eval.recv::<String>().await.unwrap()
+    });
+    match future.read_unchecked().as_ref() {
+        // On les a obtenus => on affiche l'application
+        Some(cookies) => rsx! {
+            document::Stylesheet { href: TAILWIND }
+            Body {
+                MainPart { cookies }
+            }
+        },
+        // On ne les a pas encore obtenus => on affiche une page blanche.
+        // Inutile de définir une page d'attente car dans les faits un refresh
+        // provoque un clignotement fugitif.
+        _ => rsx!{
+            div {}
+        }
     }
 }
 

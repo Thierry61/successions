@@ -55,14 +55,14 @@ pub fn compute(input: InputState, result: &mut ResultState) {
     calcul_beneficiaire_total(&mut result.deuxieme_av_total, &result.deuxieme_av_enfant, input.nb_enfants, None);
 
     // Actif brut de communauté : RP + placements hors AV/PER + biens meublants si le forfait mobilier n'est pas utilisé.
-    // (au civil et au fiscal avec un remise de 20% sur la RP au fiscal)
+    // (au civil et au fiscal, avec un remise de 20% sur la RP au fiscal)
     result.premier_deces_civil.actif_brut_communaute = input.residence_principale + input.placements;
     result.premier_deces_fiscal.actif_brut_communaute = (input.residence_principale as f64 * (1.0 - REMISE_RP_FISCALE)) as i32 + input.placements;
     if !input.forfait_mobilier {
         result.premier_deces_civil.actif_brut_communaute += input.biens_meublants;
         result.premier_deces_fiscal.actif_brut_communaute += input.biens_meublants;
     }
-    
+
     // Actif brut de communauté : actif net de communauté - dettes
     // (au civil et au fiscal)
     result.premier_deces_civil.actif_net_communaute = result.premier_deces_civil.actif_brut_communaute - input.dettes;
