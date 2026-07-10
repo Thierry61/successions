@@ -25,11 +25,11 @@ fn set_cookie(js: &mut String, name: &'static str, val: i32, default_val: i32) {
     // 400 days is the upper limit for Max-Age attribute (see https://developer.chrome.com/blog/cookie-max-age-expires)
     let max_age = 400 * 24 * 3600;
     if val != default_val {
-        // Crée le cookie
-        js.push_str(&format!(r#"document.cookie = "{name}={val}; Max-Age={max_age}"; "#));
+        // Crée le cookie. Utilise l'attribut expires plutôt que maxAge car la disponibilité de ce dernier est plus limitée.
+        js.push_str(&format!(r#"cookieStore.set({{name: "{name}", value: {val}, expires: Date.now() + {max_age}}}), "#));
     } else  {
-        // Détruit le cookie en lui donnant une date d'expiration dans le passé
-        js.push_str(&format!(r#"document.cookie = "{name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"; "#));
+        // Détruit le cookie
+        js.push_str(&format!(r#"cookieStore.delete("{name}"), "#));
     }
 }
 
@@ -40,7 +40,7 @@ fn test_set_cookie() {
     let mut js = String::new();
     set_cookie(&mut js, "nb_enfants", 3, 2);
     set_cookie(&mut js, "dettes", 0, 0);
-    let expected = format!(r#"document.cookie = "nb_enfants=3; Max-Age=34560000"; document.cookie = "dettes=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"; "#);
+    let expected = format!(r#"cookieStore.set({{name: "nb_enfants", value: 3, expires: Date.now() + 34560000}}), cookieStore.delete("dettes"), "#);
     assert_eq!(&js, &expected)
 }
 
@@ -173,7 +173,7 @@ impl InputState {
     // Idem pour cette fonction codée en dur pour sauvergarder les entrées dans des cookies
     pub fn to_cookies(store: Store<InputState>) {
         let def = InputState::new();
-        let mut js = String::new();
+        let mut js = "await Promise.all([".to_string();
         set_cookie(&mut js, "nb_enfants", *store.nb_enfants().read(), def.nb_enfants);
         set_cookie(&mut js, "dettes", *store.dettes().read(), def.dettes);
         set_cookie(&mut js, "residence_principale", *store.residence_principale().read(), def.residence_principale);
@@ -193,6 +193,7 @@ impl InputState {
         set_cookie(&mut js, "av_conjoint_enfants", *store.av_conjoint_enfants().read(), def.av_conjoint_enfants);
         set_cookie(&mut js, "per_vous_conjoint", *store.per_vous_conjoint().read(), def.per_vous_conjoint);
         set_cookie(&mut js, "per_conjoint_conjoint", *store.per_conjoint_conjoint().read(), def.per_conjoint_conjoint);
+        js.push_str("]);");
         execute_js(js);
     }
 }
