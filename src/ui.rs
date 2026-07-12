@@ -10,7 +10,7 @@ use crate::data::{calcul_biens_meublants, DEFAUT_NB_ENFANTS, HeritierStateStoreE
 fn Fieldset(legend: &'static str, optional: &'static str, center: bool, children: Element) -> Element {
     rsx! {
         fieldset {
-            class: "bg-blue-100 dark:bg-blue-500 border-t border-l border-r border-blue-300 dark:border-blue-700",
+            class: "bg-blue-100 dark:bg-blue-600 border-t border-l border-r border-blue-300 dark:border-blue-800",
             class: if !center { "border rounded-lg drop-shadow-md drop-shadow-md" },
             class: if center { "rounded-t-lg" },
             legend {
@@ -35,7 +35,7 @@ fn Checkbox(id: &'static str, lab: &'static str, tooltip: &'static str, signal: 
             span { class: "tooltip-text ml-12!", {tooltip} }
             input {
                 id,
-                class: "mx-2 my-1 accent-blue-50 dark:accent-blue-600",
+                class: "mx-2 my-1 accent-blue-50 dark:accent-blue-700",
                 r#type: "checkbox",
                 onclick: move |_| {
                     signal.toggle();
@@ -120,7 +120,7 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
         };
     rsx! {
         input {
-            class: "w-17 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-400 rounded-sm",
+            class: "w-17 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm",
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
             class: "remove-arrow",
             r#type: "number",
@@ -139,7 +139,7 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
 fn Output(signal: ReadSignal<i32>) -> Element {
     rsx! {
         input {
-            class: "w-17 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-400 rounded-sm ml-2",
+            class: "w-17 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-2",
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
             class: "remove-arrow",
             r#type: "number",
@@ -154,8 +154,8 @@ fn InputWithLabel(id: &'static str, lab: &'static str, tooltip: &'static str, si
     rsx! {
         div { id,
             div {
-                class: "w-48 px-2 py-1 flex flex-row justify-between bg-blue-100 dark:bg-blue-500 rounded-lg drop-shadow-md",
-                class: "border border-blue-300 dark:border-blue-700",
+                class: "w-48 px-2 py-1 flex flex-row justify-between bg-blue-100 dark:bg-blue-600 rounded-lg drop-shadow-md",
+                class: "border border-blue-300 dark:border-blue-800",
                 div { class: if !tooltip.is_empty() { "tooltip-top tooltip" },
                     span { class: "tooltip-text", {tooltip} }
                     {lab}
@@ -474,12 +474,12 @@ pub fn MainPart(cookies: String) -> Element {
                                         "enfant"
                                     }
                                     div { class: "pl-1 tooltip tooltip-top",
-                                        span { class: "tooltip-text", "Impôts reçus par l'Etat." }
+                                        span { class: "tooltip-text", "Impôts perçus par l'Etat." }
                                         "Etat"
                                     }
                                     div { class: "pl-2 tooltip tooltip-top",
                                         span { class: "tooltip-text w-35!",
-                                            "Emoluments reçus par le notaire."
+                                            "Emoluments perçus par le notaire."
                                         }
                                         "Notaire"
                                     }
@@ -492,14 +492,14 @@ pub fn MainPart(cookies: String) -> Element {
                             }
                             "100% US"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_totalite_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_totalite_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-700",
+                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_totalite_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
+                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_totalite_us().cumul_enfant() }
                             Output { signal: result.option_totalite_us().cumul_etat() }
                             Output { signal: result.option_totalite_us().cumul_notaire() }
@@ -510,14 +510,14 @@ pub fn MainPart(cookies: String) -> Element {
                             }
                             "¼ PP"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-700",
+                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
+                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_1_4_pp().cumul_enfant() }
                             Output { signal: result.option_1_4_pp().cumul_etat() }
                             Output { signal: result.option_1_4_pp().cumul_notaire() }
@@ -528,14 +528,14 @@ pub fn MainPart(cookies: String) -> Element {
                             }
                             "¼ PP ¾ US"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp_3_4_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp_3_4_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-700",
+                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp_3_4_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
+                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_1_4_pp_3_4_us().cumul_enfant() }
                             Output { signal: result.option_1_4_pp_3_4_us().cumul_etat() }
                             Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
@@ -547,14 +547,14 @@ pub fn MainPart(cookies: String) -> Element {
                             }
                             "QD PP"
                         }
-                        div { class: "col-span-2 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-700 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-2 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_qd_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_qd_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-700",
+                        div { class: "col-span-1 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_qd_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-700 grid grid-cols-3 items-stretch",
+                        div { class: "col-span-3 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
                             Output { signal: result.option_qd_pp().cumul_enfant() }
                             Output { signal: result.option_qd_pp().cumul_etat() }
                             Output { signal: result.option_qd_pp().cumul_notaire() }

@@ -6,6 +6,7 @@ mod ui;
 use ui::MainPart;
 
 static TAILWIND: Asset = asset!("/assets/tailwind.css");
+static MAIN_CSS: Asset = asset!("/assets/main.css");
 static MOON: Asset = asset!("/assets/moon.svg");
 static SUN: Asset = asset!("/assets/sun.svg");
 
@@ -25,6 +26,7 @@ fn App() -> Element {
         // On les a obtenus => on affiche l'application
         Some(cookies) => rsx! {
             document::Stylesheet { href: TAILWIND }
+            document::Stylesheet { href: MAIN_CSS }
             Body {
                 MainPart { cookies }
             }
@@ -46,10 +48,10 @@ fn Body(children: Element) -> Element {
     rsx! {
         div {
             class: if dark() { "dark" } else { "" },
-            class: "h-full w-full bg-blue-50 dark:bg-blue-700 text-blue-900 dark:text-white",
+            class: "h-full w-full bg-blue-50 dark:bg-blue-800 text-blue-900 dark:text-white",
             class: "flex flex-col justify-between",
             // Background colors need to be duplicated to remove a white stripe when scrollbar appears
-            div { class: "bg-blue-50 dark:bg-blue-700",
+            div { class: "bg-blue-50 dark:bg-blue-800",
                 header {
                     id: "header",
                     class: "bg-blue-100 dark:bg-blue-900",
@@ -57,7 +59,7 @@ fn Body(children: Element) -> Element {
                     span { class: "m-3 font-semibold", "Simulation de successions" }
                     // TODO: ajouter un bouton pour activer/désactiver les tooltips
                     button {
-                        class: "rounded-md border border-blue-400 bg-blue-50 dark:bg-blue-500 px-3 py-1 m-3",
+                        class: "rounded-md border border-blue-400 bg-blue-50 dark:bg-blue-600 px-3 py-1 m-3",
                         class: "tooltip-left tooltip",
                         onclick: move |_| dark.toggle(),
                         img {

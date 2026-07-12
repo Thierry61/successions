@@ -18,14 +18,15 @@ fn Euros (val: ReadSignal<i32>) -> Element {
     }
 }
 
-// Formate un nombre en réservant la place pour le symbol € sans l'afficher
-// (pour aligner les chiffres avec ceux des valeurs en euros)
+// Formate un nombre non monétaire. Initialement en réservant la place pour le symbol € sans l'afficher
+// pour aligner les chiffres avec ceux des valeurs en euros, mais en fait le résultat est moyen.
+// Pour réinstituer cette fonction il faut décommenter le span en commentaire.
 #[component]
 fn Nb (num: ReadSignal<i32>) -> Element {
     rsx! {
         span {
             "{num}"
-            span { class: "opacity-0", " €" }
+                // span { class: "opacity-0", " €" }
         }
     }
 }
@@ -34,12 +35,10 @@ fn Nb (num: ReadSignal<i32>) -> Element {
 pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_report: ReadSignal<bool>) -> Element {
     rsx! {
         details {
-            class: "border-y border-transparent open:border-black/10 open:bg-gray-100 dark:open:bg-gray-600 text-gray-900 dark:text-white",
+            class: "open:bg-green-50 dark:open:bg-gray-700 text-gray-900 dark:text-white",
             class: if show_report() { " block" } else { "hidden" },
             open: "true",
-            summary { class: "m-2 text-sm leading-6 font-semibold select-none",
-                "Détails du dernier calcul :"
-            }
+            summary { class: "m-2 text-sm leading-6 font-semibold select-none", "Détails du calcul :" }
             div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
                 h1 { class: "font-bold", "Données d'entrée :" }
                 div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
@@ -88,10 +87,10 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 }
                 br {}
                 div {
-                    div { class: "flex flex-row gap-4",
+                    div { class: "flex flex-row gap-6",
                         ul { class: "ml-5 list-disc list-outside",
                             li { class: "list-none text-right opacity-0", "Epoux : " }
-                            li { "Age :" }
+                            li { "Age des époux :" }
                             li { "AV au bénéfice du conjoint :" }
                             li { "AV au bénéfice des enfants :" }
                             li { "PER au bénéfice du conjoint :" }
@@ -173,9 +172,9 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "Calcul succession :" }
+                h1 { class: "font-bold", "Succession 1er décès :" }
                 div {
-                    div { class: "flex flex-row gap-4",
+                    div { class: "flex flex-row gap-6",
                         ul { class: "ml-5 list-disc list-outside",
                             li { class: "list-none text-right opacity-0", "Plan : " }
                             li { "Actif brut de communauté :" }
@@ -256,7 +255,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 div {
                     div { class: "flex flex-row gap-6",
                         ul { class: "ml-5 list-disc list-outside",
-                            li { class: "h-12 list-none text-right opacity-0", "Bénéficiaire : " }
+                            li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
                             li { "Capitaux décès bruts :" }
                             li { "Abattement :" }
                             li { "Part taxable :" }
@@ -265,34 +264,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                         }
                         ul {
                             li { class: "text-center",
-                                div {
-                                    br {}
-                                    "Survivant"
-                                }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().brut() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().abattement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().taxable() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().prelevement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().net() }
-                            }
-                        }
-                        ul {
-                            li { class: "text-center",
-                                div {
-                                    "Chaque"
-                                    br {}
-                                    "enfant"
-                                }
+                                div { "Chaque enfant" }
                             }
                             li { class: "text-right",
                                 Euros { val: result.premier_av_enfant().brut() }
@@ -312,10 +284,27 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                         }
                         ul {
                             li { class: "text-center",
-                                div {
-                                    br {}
-                                    "Total"
-                                }
+                                div { "Survivant" }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().brut() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().abattement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().taxable() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().prelevement() }
+                            }
+                            li { class: "text-right",
+                                Euros { val: result.premier_av_survivant().net() }
+                            }
+                        }
+                        ul {
+                            li { class: "text-center",
+                                div { "Total" }
                             }
                             li { class: "text-right",
                                 Euros { val: result.premier_av_total().brut() }
@@ -341,7 +330,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 div {
                     div { class: "flex flex-row gap-6",
                         ul { class: "ml-5 list-disc list-outside",
-                            li { class: "h-12 list-none text-right opacity-0", "Bénéficiaire : " }
+                            li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
                             li { "Capitaux décès bruts :" }
                             li { "Abattement :" }
                             li { "Part taxable :" }
@@ -350,11 +339,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                         }
                         ul {
                             li { class: "text-center",
-                                div {
-                                    "Chaque"
-                                    br {}
-                                    "enfant"
-                                }
+                                div { "Chaque enfant" }
                             }
                             li { class: "text-right",
                                 Euros { val: result.deuxieme_av_enfant().brut() }
@@ -374,10 +359,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                         }
                         ul {
                             li { class: "text-center",
-                                div {
-                                    br {}
-                                    "Total"
-                                }
+                                div { "Total" }
                             }
                             li { class: "text-right",
                                 Euros { val: result.deuxieme_av_total().brut() }
@@ -399,7 +381,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 }
             }
             details {
-                class: "p-2 border-y border-transparent open:border-black/10 open:bg-gray-100 dark:open:bg-gray-600",
+                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
                 open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option totalité en usufruit :"
@@ -407,7 +389,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 div { "TODO" }
             }
             details {
-                class: "p-2 border-y border-transparent open:border-black/10 open:bg-gray-100 dark:open:bg-gray-600",
+                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
                 open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option 1/4 en pleine propriété :"
@@ -415,7 +397,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 div { "TODO" }
             }
             details {
-                class: "p-2 border-y border-transparent open:border-black/10 open:bg-gray-100 dark:open:bg-gray-600",
+                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
                 open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option 1/4 en pleine propriété - 3/4 en usufruit :"
@@ -423,7 +405,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 div { "TODO" }
             }
             details {
-                class: "p-2 border-y border-transparent open:border-black/10 open:bg-gray-100 dark:open:bg-gray-600",
+                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
                 open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option quotité disponible en pleine propriété :"
