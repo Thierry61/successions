@@ -1,9 +1,9 @@
 use std::cmp;
 
-use crate::data::{ABATTEMENT_AV, BeneficiaireState, FORFAIT_FRAIS_FUNERAIRES, REMISE_RP_FISCALE};
-use crate::data::{InputState, ResultState, FractionnementPropriete};
+use crate::data::{ABATTEMENT_AV, ABATTEMENT_DROITS, BeneficiaireState, FORFAIT_FRAIS_FUNERAIRES, HeritierState, REMISE_RP_FISCALE};
+use crate::data::{InputState, OptionState, ResultState, FractionnementPropriete};
 
-// Calcul au niveau des structures sous-jacentes
+// Calcul au niveau des structures sous-jacentes (par opposition au wrapper de type store)
 pub fn compute(input: InputState, result: &mut ResultState) {
     // Si le conjoint survivant a des AV alors il les conserve mais il doit une récompense à la communauté.
     // (au civil uniquement)
@@ -16,7 +16,7 @@ pub fn compute(input: InputState, result: &mut ResultState) {
     };
     result.premier_deces_civil.recompense_due_par_le_survivant = av;
     result.premier_deces_civil.solde_recompenses += av;
-    // Ces AV seront transmises aux enfants au 2eme décès
+    // Ces AV seront transmises aux enfants au 2eme décès avec des prélèvements fiscaux
     calcul_beneficiaire(&mut result.deuxieme_av_enfant, av / input.nb_enfants);
 
     // Si le défunt avait une AV au bénéfice des enfants alors ceux-ci reçoivent le capital mais le défunt doit une récompense à la communauté,
@@ -35,7 +35,7 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         result.premier_deces_fiscal.recompense_due_par_le_defunt = av;
         result.premier_deces_fiscal.solde_recompenses += av;
     }
-    // Cette AV est transmise aux enfants
+    // Cette AV est transmise aux enfants au 1er décès avec des prélèvements fiscaux
     calcul_beneficiaire(&mut result.premier_av_enfant, av / input.nb_enfants);
 
     // Si le défunt avait une AV au bénéfice du conjoint alors celui-ci reçoit le capital sans qu'une récompense soit due.
@@ -46,13 +46,13 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         // Votre conjoint est le défunt
         input.av_conjoint_conjoint
     };
-    // Cette AV est transmise au survivant
+    // Cette AV est transmise au survivant sans prélèvements fiscaux
     result.premier_av_survivant.brut = av;
     result.premier_av_survivant.net = av;
 
-    // Cumul des AV transmises aux bénéficiaires
-    calcul_beneficiaire_total(&mut result.premier_av_total, &result.premier_av_enfant, input.nb_enfants, Some(&result.premier_av_survivant));
-    calcul_beneficiaire_total(&mut result.deuxieme_av_total, &result.deuxieme_av_enfant, input.nb_enfants, None);
+    // Répartition des totaux des AV transmises aux bénéficiaires
+    repartition_beneficiaire_total(&mut result.premier_av_total, &result.premier_av_enfant, input.nb_enfants, Some(&result.premier_av_survivant));
+    repartition_beneficiaire_total(&mut result.deuxieme_av_total, &result.deuxieme_av_enfant, input.nb_enfants, None);
 
     // Actif brut de communauté : RP + placements hors AV/PER + biens meublants si le forfait mobilier n'est pas utilisé.
     // (au civil et au fiscal, avec un remise de 20% sur la RP au fiscal)
@@ -103,11 +103,111 @@ pub fn compute(input: InputState, result: &mut ResultState) {
     result.premier_deces_civil.part_survivant_hors_succession = result.premier_deces_civil.actif_net_communaute_ajuste / 2
         - result.premier_deces_civil.recompense_due_par_le_survivant;
 
+    // Calcul des 4 options du survivant
+    // On fait une copie de cette structure car la fonction calcul_option va en modifier un sous-ensemble
+    // mais a besoin de lire le reste et elle ne peut pas l'emprunter à la fois en lecture et en écriture.
+    let photo_result = result.clone();
+    calcul_option(&mut result.option_totalite_us, FractionnementPropriete::new_totalite_us(), &input, &photo_result);
+    calcul_option(&mut result.option_1_4_pp, FractionnementPropriete::new_1_4_pp(), &input, &photo_result);
+    calcul_option(&mut result.option_1_4_pp_3_4_us, FractionnementPropriete::new_1_4_pp_3_4_us(), &input, &photo_result);
+    calcul_option(&mut result.option_qd_pp, FractionnementPropriete::new_qd_pp(input.nb_enfants), &input, &photo_result);
+
     // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
-    result.option_totalite_us.cumul();
-    result.option_1_4_pp.cumul();
-    result.option_1_4_pp_3_4_us.cumul();
-    result.option_qd_pp.cumul();
+    result.option_totalite_us.cumul(input.nb_enfants);
+    result.option_1_4_pp.cumul(input.nb_enfants);
+    result.option_1_4_pp_3_4_us.cumul(input.nb_enfants);
+    result.option_qd_pp.cumul(input.nb_enfants);
+}
+
+// Calcul d'une option
+// TODO: faire les calculs dans le domaine f64 et à la fin seulement stocker les résultats dans des i32
+fn calcul_option(option: &mut OptionState, fractionnement: FractionnementPropriete, input: &InputState, result: &ResultState) {
+        
+    // Calcul du 1er décès
+    // -------------------
+
+    option.premier_total.part_civile = result.premier_deces_civil.actif_net_succession;
+    option.premier_total.part_fiscale = result.premier_deces_fiscal.actif_net_succession;
+
+    // Fractionnement de l'actif net civil en US/NP/PP pour le survivant et les enfants
+    // Deux combinaisons ne sont pas possibles : le survivant ne reçoit pas de NP et les enfants ne reçoivent pas d'US
+    let age_survivant = if input.ordre_deces { input.age_conjoint } else { input.age_vous };
+    let (us, np) = bareme_usufruit(age_survivant);
+    let fractionnement_np_enfants = fractionnement.us_survivant;
+    let fractionnement_pp_enfants = 1.0 - fractionnement.pp_survivant - fractionnement.us_survivant;
+    option.premier_survivant.heritage_pp = (fractionnement.pp_survivant * result.premier_deces_civil.actif_net_succession as f64) as i32;
+    option.premier_enfant.heritage_pp = (fractionnement_pp_enfants * result.premier_deces_civil.actif_net_succession as f64 / input.nb_enfants as f64) as i32;
+    option.premier_enfant.heritage_np = (fractionnement_np_enfants * np * result.premier_deces_civil.actif_net_succession as f64 / input.nb_enfants as f64) as i32;
+    option.premier_survivant.heritage_us = (fractionnement.us_survivant * us * result.premier_deces_civil.actif_net_succession as f64) as i32;
+
+    // Totaux US/NP/PP
+    option.premier_total.heritage_pp = option.premier_survivant.heritage_pp + input.nb_enfants * option.premier_enfant.heritage_pp;
+    option.premier_total.heritage_np = input.nb_enfants * option.premier_enfant.heritage_np;
+    option.premier_total.heritage_us = option.premier_survivant.heritage_us;
+
+    // Part civile du survivant et des enfants
+    option.premier_survivant.part_civile = option.premier_survivant.heritage_pp + option.premier_survivant.heritage_us;
+    option.premier_enfant.part_civile = option.premier_enfant.heritage_pp + option.premier_enfant.heritage_np;
+
+    // Coefficient permettant de calculer les part fiscales de chacun (survivant et enfants) à partir des parts civiles.
+    let coef = result.premier_deces_fiscal.actif_net_succession as f64 / result.premier_deces_civil.actif_net_succession as f64;
+    option.premier_survivant.part_fiscale = (coef * option.premier_survivant.part_civile as f64) as i32;
+    option.premier_enfant.part_fiscale = (coef * option.premier_enfant.part_civile as f64) as i32;
+
+    // Calcul des droits et de l'héritage net des enfants
+    calcul_heritier(&mut option.premier_enfant, Some(input.donations_partages/2/input.nb_enfants), result.premier_av_enfant.net);
+
+    // Calcul de l'héritage du survivant
+    calcul_heritier(&mut option.premier_survivant, None, result.premier_av_survivant.net);
+
+    // Répartition des totaux des héritages
+    repartition_heritier_total(&mut option.premier_total, &option.premier_enfant, input.nb_enfants, Some(&option.premier_survivant));
+    option.premier_etat = option.premier_total.droits_succession + option.premier_total.droits_partage + result.premier_av_total.prelevement;
+    option.premier_notaire = option.premier_total.emoluments_partage;
+
+    // Calcul du 2eme décès
+    // --------------------
+
+    // Extinction d'usufruit (US + NP enfin reçus par les enfanst mais non taxées encore)
+    option.deuxieme_total.extinction_us = option.premier_survivant.heritage_us + input.nb_enfants * option.premier_enfant.heritage_np;
+
+    // Part civile:
+    // La part du survivant hors succession + sa part en PP dans la succession + le capital de l'AV qu'il avait reçu du conjoint
+    option.deuxieme_total.part_civile = result.premier_deces_civil.part_survivant_hors_succession + option.premier_survivant.heritage_pp + result.premier_av_survivant.net;
+
+    // Part fiscale:
+    option.deuxieme_total.part_fiscale = option.deuxieme_total.part_civile;
+
+    // Chaque enfant a sa part proportionnelle de ces éléments
+    option.deuxieme_enfant.extinction_us = option.deuxieme_total.extinction_us / input.nb_enfants;
+    option.deuxieme_enfant.part_civile = option.deuxieme_total.part_civile / input.nb_enfants;
+    option.deuxieme_enfant.part_fiscale = option.deuxieme_total.part_fiscale / input.nb_enfants;
+
+    // Calcul des droits et de l'héritage net des enfants
+    calcul_heritier(&mut option.deuxieme_enfant, Some(input.donations_partages/2/input.nb_enfants), result.deuxieme_av_enfant.net);
+
+    // Répartition des totaux des héritages
+    repartition_heritier_total(&mut option.deuxieme_total, &option.deuxieme_enfant, input.nb_enfants, None);
+    option.deuxieme_etat = option.deuxieme_total.droits_succession + option.deuxieme_total.droits_partage + result.deuxieme_av_total.prelevement;
+    option.deuxieme_notaire = option.deuxieme_total.emoluments_partage;
+}
+
+// Barème fiscal de l'usufruit et de la nue-propriété (cf. https://www.service-public.gouv.fr/particuliers/vosdroits/F934)
+// en fonction de l'âge révolu (c'est-à-dire l'âge au dernier anniversaire)
+fn bareme_usufruit(age_usufrutier: i32) -> (f64, f64) {
+    let us = match age_usufrutier {
+        a if a < 21 => 0.9,
+        a if a < 31 => 0.8,
+        a if a < 41 => 0.7,
+        a if a < 51 => 0.6,
+        a if a < 61 => 0.5,
+        a if a < 71 => 0.4,
+        a if a < 81 => 0.3,
+        a if a < 91 => 0.2,
+        _ => 0.1,
+    };
+    let np = 1.0 - us;
+    (us, np)
 }
 
 // Droits de succession en ligne direct sur la part taxable après abattement de 100 000 €
@@ -135,6 +235,46 @@ fn droits_en_ligne_direct(part: f64) -> f64 {
     (res*100.0).round()/100.0
 }
 
+// Calcul de l'héritage net d'un enfant ou du survivant
+fn calcul_heritier(heritier: &mut HeritierState, donations_partages: Option<i32>, av_net: i32) {
+    if let Some(donations_partages) = donations_partages {
+        // C'est un enfant => il est susceptible de payer des droits de succession
+        heritier.abattement = cmp::max(0, cmp::min(heritier.part_fiscale, ABATTEMENT_DROITS - donations_partages));
+        heritier.taxable = heritier.part_fiscale - heritier.abattement;
+        heritier.droits_succession = droits_en_ligne_direct(heritier.taxable as f64) as i32;
+        heritier.heritage_net = heritier.part_civile - heritier.droits_succession;
+        // Au 2ème décès l'enfant touche l'extinction d'usufruit sans droits
+        heritier.heritage_net += heritier.extinction_us;
+        // Au 1er décès l'enfant ne touche pas réellement la nue propriété car elle est démembrée.
+        heritier.flux_financier = heritier.heritage_net - heritier.heritage_np;
+    } else {
+        // C'est le survivant => il ne paye pas de droits de succession
+        heritier.heritage_net = heritier.part_civile;
+        // Au 1er décès le survivant ne touche pas réellement l'usufruit car elle est démembrée.
+        heritier.flux_financier = heritier.heritage_net - heritier.heritage_us;
+    }
+    // Dans tous les cas l'héritier touche le capital de l'av dont il est bénéficiare
+    heritier.flux_financier_avec_av = heritier.flux_financier + av_net;
+}
+
+// Répartition des totaux des héritages
+fn repartition_heritier_total(total: &mut HeritierState, enfant: &HeritierState, nb_enfants: i32, survivant: Option<&HeritierState>) {
+    total.abattement = enfant.abattement * nb_enfants;
+    total.taxable = enfant.taxable * nb_enfants;
+    total.droits_succession = enfant.droits_succession * nb_enfants;
+    total.heritage_net = enfant.heritage_net * nb_enfants;
+    total.flux_financier = enfant.flux_financier * nb_enfants;
+    total.flux_financier_avec_av = enfant.flux_financier_avec_av * nb_enfants;
+    if let Some(survivant) = survivant {
+        total.abattement += survivant.abattement;
+        total.taxable += survivant.taxable;
+        total.droits_succession += survivant.droits_succession;
+        total.heritage_net += survivant.heritage_net;
+        total.flux_financier += survivant.flux_financier;
+        total.flux_financier_avec_av += survivant.flux_financier_avec_av;
+    }
+}
+
 // Prélèvements sur une assurance-vie au dela de l'abattement de 152 500 €
 // (cf. https://www.impots.gouv.fr/international-particulier/questions/je-suis-beneficiaire-dune-assurance-vie-comment-sont-imposees)
 fn prelevements_assurance_vie(part: f64) -> f64 {
@@ -147,6 +287,7 @@ fn prelevements_assurance_vie(part: f64) -> f64 {
     (res*100.0).round()/100.0
 }
 
+// Calcul des capitaux décès nets pour une AV reçu par un enfant bénéficiaire
 fn calcul_beneficiaire(beneficiaire: &mut BeneficiaireState, brut: i32) {
     beneficiaire.brut = brut;
     beneficiaire.abattement = cmp::min(brut, ABATTEMENT_AV);
@@ -155,7 +296,8 @@ fn calcul_beneficiaire(beneficiaire: &mut BeneficiaireState, brut: i32) {
     beneficiaire.net = beneficiaire.brut - beneficiaire.prelevement;
 }
 
-fn calcul_beneficiaire_total(total: &mut BeneficiaireState, enfant: &BeneficiaireState, nb_enfants: i32, survivant: Option<&BeneficiaireState>) {
+// Répartition totale des AV transmises aux bénéficiaires
+fn repartition_beneficiaire_total(total: &mut BeneficiaireState, enfant: &BeneficiaireState, nb_enfants: i32, survivant: Option<&BeneficiaireState>) {
     total.brut = enfant.brut * nb_enfants;
     total.abattement = enfant.abattement * nb_enfants;
     total.taxable = enfant.taxable * nb_enfants;
@@ -214,6 +356,14 @@ fn declaration_succession(part: f64) -> f64 {
     let res = 1.2 * res;
     // Arrondi au centime
     (res*100.0).round()/100.0
+}
+
+#[test]
+fn test_bareme_usufruit() {
+    assert_eq!(bareme_usufruit(61), (0.4, 0.6));
+    assert_eq!(bareme_usufruit(66), (0.4, 0.6));
+    assert_eq!(bareme_usufruit(70), (0.4, 0.6));
+    assert_eq!(bareme_usufruit(71), (0.3, 0.7));
 }
 
 #[test]

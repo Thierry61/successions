@@ -7,6 +7,7 @@ pub const FORFAIT_FRAIS_FUNERAIRES : i32 = 1500;
 pub const REMISE_RP_FISCALE : f64 = 0.2;
 pub const DEFAUT_NB_ENFANTS: i32 = 2;
 pub const ABATTEMENT_AV: i32 = 152_500;
+pub const ABATTEMENT_DROITS: i32 = 100_000;
 
 // Execute une commande javascript
 fn execute_js(js: String) {
@@ -210,7 +211,7 @@ fn test_new_from_cookies() {
 }
 
 // Bénéficiaire d'une assurance-vie
-#[derive(Store, Default)]
+#[derive(Store, Default, Clone)]
 pub struct BeneficiaireState {
     brut: i32,
     abattement: i32,
@@ -231,7 +232,7 @@ impl BeneficiaireState {
 
 // Heritier dans une succession. Attention : Ne pas regrouper avec la notion de bénéficiaire
 // car le premier dépend de l'option choisie, mais pas le second.
-#[derive(Store, Default)]
+#[derive(Store, Default, Clone)]
 pub struct HeritierState {
     // Champs pour le 1er décès
     heritage_pp: i32,
@@ -273,7 +274,7 @@ impl HeritierState {
 
 // Résultat du calcul pour une option choisie par le conjoint survivant
 // ("totalite en US", "1/4 en PP", "1/4_PP et 3/4 en US" ou "quotité disponible en PP")
-#[derive(Store, Default)]
+#[derive(Store, Default, Clone)]
 pub struct OptionState {
     // Données du premier décès
     premier_survivant: HeritierState,
@@ -293,6 +294,7 @@ pub struct OptionState {
     cumul_enfant: i32,
     cumul_etat: i32,
     cumul_notaire: i32,
+    cumul_total: i32,
 }
 impl OptionState {
     // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
@@ -313,12 +315,14 @@ impl OptionState {
         store.cumul_enfant().set(self.cumul_enfant);
         store.cumul_etat().set(self.cumul_etat);
         store.cumul_notaire().set(self.cumul_notaire);
+        store.cumul_total().set(self.cumul_total);
     }
     // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
-    pub fn cumul(&mut self) {
+    pub fn cumul(&mut self, nb_enfants: i32) {
         self.cumul_enfant = self.premier_enfant.flux_financier_avec_av + self.deuxieme_enfant.flux_financier_avec_av;
         self.cumul_etat = self.premier_etat + self.deuxieme_etat;
         self.cumul_notaire = self.premier_notaire + self.deuxieme_notaire;
+        self.cumul_total = self.cumul_enfant * nb_enfants + self.cumul_etat + self.cumul_notaire;
     }
 }
 
@@ -360,7 +364,7 @@ impl FractionnementPropriete {
 // - toutes les récompenses gérées sont dues à la communauté et sont donc inscrites à l'actif de la communauté
 // - en parallèle elles sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
 
-#[derive(Store, Default)]
+#[derive(Store, Default, Clone)]
 pub struct PremierDeces {
     recompense_due_par_le_survivant: i32,
     recompense_due_par_le_defunt: i32,
@@ -386,7 +390,7 @@ impl PremierDeces {
     }
 }
 
-#[derive(Store, Default)]
+#[derive(Store, Default, Clone)]
 pub struct ResultState {
     premier_deces_civil: PremierDeces,
     premier_deces_fiscal: PremierDeces,

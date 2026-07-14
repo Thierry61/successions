@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::report::Rapport;
+use crate::report::{format_num, Rapport};
 use crate::data::{calcul_biens_meublants, DEFAUT_NB_ENFANTS, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
 
 // Gestion d'un fieldset:
@@ -137,14 +137,14 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
 
 #[component]
 fn Output(signal: ReadSignal<i32>) -> Element {
+    let num = format_num(signal);
     rsx! {
         input {
-            class: "w-17 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-2",
+            class: "w-18 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-2",
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
             class: "remove-arrow",
-            r#type: "number",
             disabled: true,
-            value: signal,
+            value: num,
         }
     }
 }

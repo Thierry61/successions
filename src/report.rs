@@ -1,20 +1,29 @@
 use dioxus::prelude::*;
 
-use crate::data::{BeneficiaireStateStoreExt, InputState, InputStateStoreExt, PremierDecesStoreExt, ResultState, ResultStateStoreExt};
+use crate::data::{BeneficiaireState, BeneficiaireStateStoreExt, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionState, OptionStateStoreExt, PremierDecesStoreExt, ResultState, ResultStateStoreExt};
 
-// Formate un nombre en lui ajoutant le symbol € et des blancs comme séparateurs de milliers
-#[component]
-fn Euros (val: ReadSignal<i32>) -> Element {
-    let num = val.to_string()
+// Formate un nombre avec des blancs comme séparateurs de milliers
+pub fn format_num(val: ReadSignal<i32>) -> String {
+    val.to_string()
         .as_bytes()
         .rchunks(3)
         .rev()
         .map(std::str::from_utf8)
         .collect::<Result<Vec<&str>, _>>()
         .unwrap()
-        .join(" ");  // séparateur
+        .join(" ")  // séparateur
+}
+
+// Formate un nombre en lui ajoutant le symbol € et des blancs comme séparateurs de milliers
+// et inclut le résultat dans un élement li
+#[component]
+fn Euros (val: ReadSignal<i32>, class: Option<&'static str>) -> Element {
+    let num = format_num(val);
+    let class = class.unwrap_or_default();
     rsx! {
-        span { "{num} €" }
+        li { class: "text-right", class: "{class}",
+            span { "{num} €" }
+        }
     }
 }
 
@@ -24,9 +33,243 @@ fn Euros (val: ReadSignal<i32>) -> Element {
 #[component]
 fn Nb (num: ReadSignal<i32>) -> Element {
     rsx! {
-        span {
-            "{num}"
-                // span { class: "opacity-0", " €" }
+        li { class: "text-right",
+            span {
+                "{num}"
+                        // span { class: "opacity-0", " €" }
+            }
+        }
+    }
+}
+
+// Affiche la distribution des assurances-vie aux bénéficiaires
+// (enfants, éventuellement survivant et total)
+// TODO: Trouver un moyen d'utiliser une Option<Store<BeneficiaireState>> pour le survivant
+#[component]
+fn AssuranceVie(enfant: Store<BeneficiaireState>, survivant: Store<BeneficiaireState>, affiche_survivant: bool, total: Store<BeneficiaireState>) -> Element {
+    rsx! {
+        div {
+            div { class: "flex flex-row gap-6",
+                ul { class: "ml-5 list-disc list-outside",
+                    li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
+                    li { "Capitaux décès bruts :" }
+                    li { "Abattement :" }
+                    li { "Part taxable :" }
+                    li { class: "font-semibold text-red-600 dark:text-red-400", "Prélèvements :" }
+                    li { class: "font-semibold text-green-600 dark:text-green-400",
+                        "Capitaux décès nets :"
+                    }
+                }
+                ul {
+                    li { class: "text-center",
+                        div { "Chaque enfant" }
+                    }
+                    Euros { val: enfant.brut() }
+                    Euros { val: enfant.abattement() }
+                    Euros { val: enfant.taxable() }
+                    Euros {
+                        class: "font-semibold text-red-600 dark:text-red-400",
+                        val: enfant.prelevement(),
+                    }
+                    Euros {
+                        class: "font-semibold text-green-600 dark:text-green-400",
+                        val: enfant.net(),
+                    }
+                }
+                if affiche_survivant {
+                    ul {
+                        li { class: "text-center",
+                            div { "Survivant" }
+                        }
+                        Euros { val: survivant.brut() }
+                        Euros { val: survivant.abattement() }
+                        Euros { val: survivant.taxable() }
+                        Euros {
+                            class: "font-semibold text-red-600 dark:text-red-400",
+                            val: survivant.prelevement(),
+                        }
+                        Euros {
+                            class: "font-semibold text-green-600 dark:text-green-400",
+                            val: survivant.net(),
+                        }
+                    }
+                }
+                ul {
+                    li { class: "text-center",
+                        div { "Total" }
+                    }
+                    Euros { val: total.brut() }
+                    Euros { val: total.abattement() }
+                    Euros { val: total.taxable() }
+                    Euros {
+                        class: "font-semibold text-red-600 dark:text-red-400",
+                        val: total.prelevement(),
+                    }
+                    Euros {
+                        class: "font-semibold text-green-600 dark:text-green-400",
+                        val: total.net(),
+                    }
+                }
+            }
+        }
+    }    
+}
+
+// Affichage des résultat pour une des 4 options possibles
+#[component]
+fn OptionChoisie(option: Store<OptionState>) -> Element {
+    rsx! {
+        div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
+            h1 { class: "font-bold mt-2", "Répartition 1er décès :" }
+            div {
+                div { class: "flex flex-row gap-6",
+                    ul { class: "ml-5 list-disc list-outside",
+                        li { class: "list-none text-right opacity-0", "Héritier : " }
+                        li { "Héritage en pleine propriété :" }
+                        li { "Héritage en nue propriété :" }
+                        li { "Héritage en usufruit :" }
+                        li { "Part civile :" }
+                        li { "Part fiscale :" }
+                        li { "Abattement :" }
+                        li { "Part taxable :" }
+                        li { class: "font-semibold text-red-600 dark:text-red-400",
+                            "Droits de succession :"
+                        }
+                        li { "Héritage net :" }
+                        li { class: "font-semibold text-green-600 dark:text-green-400",
+                            "Flux financier :"
+                        }
+                        li { "Flux financier avec AV:" }
+                    }
+                    ul {
+                        li { class: "text-center",
+                            div { "Chaque enfant" }
+                        }
+                        Euros { val: option.premier_enfant().heritage_pp() }
+                        Euros { val: option.premier_enfant().heritage_np() }
+                        Euros { val: option.premier_enfant().heritage_us() }
+                        Euros { val: option.premier_enfant().part_civile() }
+                        Euros { val: option.premier_enfant().part_fiscale() }
+                        Euros { val: option.premier_enfant().abattement() }
+                        Euros { val: option.premier_enfant().taxable() }
+                        Euros {
+                            class: "font-semibold text-red-600 dark:text-red-400",
+                            val: option.premier_enfant().droits_succession(),
+                        }
+                        Euros { val: option.premier_enfant().heritage_net() }
+                        Euros {
+                            class: "font-semibold text-green-600 dark:text-green-400",
+                            val: option.premier_enfant().flux_financier(),
+                        }
+                        Euros { val: option.premier_enfant().flux_financier_avec_av() }
+                    }
+                    ul {
+                        li { class: "text-center",
+                            div { "Survivant" }
+                        }
+                        Euros { val: option.premier_survivant().heritage_pp() }
+                        Euros { val: option.premier_survivant().heritage_np() }
+                        Euros { val: option.premier_survivant().heritage_us() }
+                        Euros { val: option.premier_survivant().part_civile() }
+                        Euros { val: option.premier_survivant().part_fiscale() }
+                        Euros { val: option.premier_survivant().abattement() }
+                        Euros { val: option.premier_survivant().taxable() }
+                        Euros {
+                            class: "font-semibold text-red-600 dark:text-red-400",
+                            val: option.premier_survivant().droits_succession(),
+                        }
+                        Euros { val: option.premier_survivant().heritage_net() }
+                        Euros {
+                            class: "font-semibold text-green-600 dark:text-green-400",
+                            val: option.premier_survivant().flux_financier(),
+                        }
+                        Euros { val: option.premier_survivant().flux_financier_avec_av() }
+                    }
+                    ul {
+                        li { class: "text-center",
+                            div { "Total" }
+                        }
+                        Euros { val: option.premier_total().heritage_pp() }
+                        Euros { val: option.premier_total().heritage_np() }
+                        Euros { val: option.premier_total().heritage_us() }
+                        Euros { val: option.premier_total().part_civile() }
+                        Euros { val: option.premier_total().part_fiscale() }
+                        Euros { val: option.premier_total().abattement() }
+                        Euros { val: option.premier_total().taxable() }
+                        Euros {
+                            class: "font-semibold text-red-600 dark:text-red-400",
+                            val: option.premier_total().droits_succession(),
+                        }
+                        Euros { val: option.premier_total().heritage_net() }
+                        Euros {
+                            class: "font-semibold text-green-600 dark:text-green-400",
+                            val: option.premier_total().flux_financier(),
+                        }
+                        Euros { val: option.premier_total().flux_financier_avec_av() }
+                    }
+                }
+            }
+            h1 { class: "font-bold mt-2", "Répartition 2eme décès :" }
+            div {
+                div { class: "flex flex-row gap-6",
+                    ul { class: "ml-5 list-disc list-outside",
+                        li { class: "list-none text-right opacity-0", "Héritier : " }
+                        li { "Extinction usufruit :" }
+                        li { "Part civile :" }
+                        li { "Part fiscale :" }
+                        li { "Abattement :" }
+                        li { "Part taxable :" }
+                        li { class: "font-semibold text-red-600 dark:text-red-400",
+                            "Droits de succession :"
+                        }
+                        li { class: "font-semibold text-green-600 dark:text-green-400",
+                            "Héritage net = Flux financier :"
+                        }
+                        li { "Flux financier avec AV:" }
+                        li { "Flux financier total des 2 décès:" }
+                    }
+                    ul {
+                        li { class: "text-center",
+                            div { "Chaque enfant" }
+                        }
+                        Euros { val: option.deuxieme_enfant().extinction_us() }
+                        Euros { val: option.deuxieme_enfant().part_civile() }
+                        Euros { val: option.deuxieme_enfant().part_fiscale() }
+                        Euros { val: option.deuxieme_enfant().abattement() }
+                        Euros { val: option.deuxieme_enfant().taxable() }
+                        Euros {
+                            class: "font-semibold text-red-600 dark:text-red-400",
+                            val: option.deuxieme_enfant().droits_succession(),
+                        }
+                        Euros {
+                            class: "font-semibold text-green-600 dark:text-green-400",
+                            val: option.deuxieme_enfant().flux_financier(),
+                        }
+                        Euros { val: option.deuxieme_enfant().flux_financier_avec_av() }
+                        Euros { val: option.cumul_enfant() }
+                    }
+                    ul {
+                        li { class: "text-center",
+                            div { "Total" }
+                        }
+                        Euros { val: option.deuxieme_total().extinction_us() }
+                        Euros { val: option.deuxieme_total().part_civile() }
+                        Euros { val: option.deuxieme_total().part_fiscale() }
+                        Euros { val: option.deuxieme_total().abattement() }
+                        Euros { val: option.deuxieme_total().taxable() }
+                        Euros {
+                            class: "font-semibold text-red-600 dark:text-red-400",
+                            val: option.deuxieme_total().droits_succession(),
+                        }
+                        Euros {
+                            class: "font-semibold text-green-600 dark:text-green-400",
+                            val: option.deuxieme_total().flux_financier(),
+                        }
+                        Euros { val: option.deuxieme_total().flux_financier_avec_av() }
+                        Euros { val: option.cumul_total() }
+                    }
+                }
+            }
         }
     }
 }
@@ -35,7 +278,7 @@ fn Nb (num: ReadSignal<i32>) -> Element {
 pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_report: ReadSignal<bool>) -> Element {
     rsx! {
         details {
-            class: "open:bg-green-50 dark:open:bg-gray-700 text-gray-900 dark:text-white",
+            class: "text-gray-900 dark:text-white",
             class: if show_report() { " block" } else { "hidden" },
             open: "true",
             summary { class: "m-2 text-sm leading-6 font-semibold select-none", "Détails du calcul :" }
@@ -44,44 +287,28 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
-
                             li { "Nombre d'enfants :" }
                             li { "Résidence principale :" }
                             li { "Placements hors AV et PER :" }
                             li { "Dettes et impôts restant dus :" }
                         }
                         ul {
-                            li { class: "text-right",
-                                Nb { num: snapshot.nb_enfants() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.residence_principale() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.placements() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.dettes() }
-                            }
+                            Nb { num: snapshot.nb_enfants() }
+                            Euros { val: snapshot.residence_principale() }
+                            Euros { val: snapshot.placements() }
+                            Euros { val: snapshot.dettes() }
                         }
                     }
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
-
                             li { "Biens meublants :" }
                             li { "Frais funéraires réels :" }
                             li { "Donations-partages :" }
                         }
                         ul {
-                            li { class: "text-right",
-                                Euros { val: snapshot.biens_meublants() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.frais_funeraires() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.donations_partages() }
-                            }
+                            Euros { val: snapshot.biens_meublants() }
+                            Euros { val: snapshot.frais_funeraires() }
+                            Euros { val: snapshot.donations_partages() }
                         }
                     }
                 }
@@ -97,33 +324,17 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                         }
                         ul {
                             li { class: "text-center", "Vous" }
-                            li { class: "text-right",
-                                Nb { num: snapshot.age_vous() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.av_vous_conjoint() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.av_vous_enfants() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.per_vous_conjoint() }
-                            }
+                            Nb { num: snapshot.age_vous() }
+                            Euros { val: snapshot.av_vous_conjoint() }
+                            Euros { val: snapshot.av_vous_enfants() }
+                            Euros { val: snapshot.per_vous_conjoint() }
                         }
                         ul {
                             li { class: "text-center", "Conjoint" }
-                            li { class: "text-right",
-                                Nb { num: snapshot.age_conjoint() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.av_conjoint_conjoint() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.av_conjoint_enfants() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: snapshot.per_conjoint_conjoint() }
-                            }
+                            Nb { num: snapshot.age_conjoint() }
+                            Euros { val: snapshot.av_conjoint_conjoint() }
+                            Euros { val: snapshot.av_conjoint_enfants() }
+                            Euros { val: snapshot.per_conjoint_conjoint() }
                         }
                     }
                 }
@@ -131,7 +342,6 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
                     div { class: "flex flex-row gap-4",
                         ul { class: "ml-5 list-disc list-outside",
-
                             li {
                                 "Forfait biens mobiliers "
                                 if !*snapshot.forfait_mobilier().read() {
@@ -189,228 +399,73 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                         }
                         ul {
                             li { class: "text-center", "Civil" }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().actif_brut_communaute() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().recompense_due_par_le_survivant() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().recompense_due_par_le_defunt() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().actif_net_communaute() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().solde_recompenses() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().actif_net_communaute_ajuste() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().actif_brut_succession() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().actif_net_succession() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_civil().part_survivant_hors_succession() }
-                            }
+                            Euros { val: result.premier_deces_civil().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_civil().recompense_due_par_le_survivant() }
+                            Euros { val: result.premier_deces_civil().recompense_due_par_le_defunt() }
+                            Euros { val: result.premier_deces_civil().actif_net_communaute() }
+                            Euros { val: result.premier_deces_civil().solde_recompenses() }
+                            Euros { val: result.premier_deces_civil().actif_net_communaute_ajuste() }
+                            Euros { val: result.premier_deces_civil().actif_brut_succession() }
+                            Euros { val: result.premier_deces_civil().actif_net_succession() }
+                            Euros { val: result.premier_deces_civil().part_survivant_hors_succession() }
                         }
                         ul {
                             li { class: "text-center", "Fiscal" }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().actif_brut_communaute() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().recompense_due_par_le_survivant() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().recompense_due_par_le_defunt() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().actif_net_communaute() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().solde_recompenses() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().actif_net_communaute_ajuste() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().actif_brut_succession() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().actif_net_succession() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_deces_fiscal().part_survivant_hors_succession() }
-                            }
+                            Euros { val: result.premier_deces_fiscal().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_fiscal().recompense_due_par_le_survivant() }
+                            Euros { val: result.premier_deces_fiscal().recompense_due_par_le_defunt() }
+                            Euros { val: result.premier_deces_fiscal().actif_net_communaute() }
+                            Euros { val: result.premier_deces_fiscal().solde_recompenses() }
+                            Euros { val: result.premier_deces_fiscal().actif_net_communaute_ajuste() }
+                            Euros { val: result.premier_deces_fiscal().actif_brut_succession() }
+                            Euros { val: result.premier_deces_fiscal().actif_net_succession() }
+                            Euros { val: result.premier_deces_fiscal().part_survivant_hors_succession() }
                         }
                     }
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
                 h1 { class: "font-bold", "Assurances-vie 1er décès :" }
-                div {
-                    div { class: "flex flex-row gap-6",
-                        ul { class: "ml-5 list-disc list-outside",
-                            li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
-                            li { "Capitaux décès bruts :" }
-                            li { "Abattement :" }
-                            li { "Part taxable :" }
-                            li { "Prélèvements :" }
-                            li { "Capitaux décès nets :" }
-                        }
-                        ul {
-                            li { class: "text-center",
-                                div { "Chaque enfant" }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_enfant().brut() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_enfant().abattement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_enfant().taxable() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_enfant().prelevement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_enfant().net() }
-                            }
-                        }
-                        ul {
-                            li { class: "text-center",
-                                div { "Survivant" }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().brut() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().abattement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().taxable() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().prelevement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_survivant().net() }
-                            }
-                        }
-                        ul {
-                            li { class: "text-center",
-                                div { "Total" }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_total().brut() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_total().abattement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_total().taxable() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_total().prelevement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.premier_av_total().net() }
-                            }
-                        }
-                    }
+                AssuranceVie {
+                    enfant: result.premier_av_enfant(),
+                    survivant: result.premier_av_survivant(),
+                    affiche_survivant: true,
+                    total: result.premier_av_total(),
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
                 h1 { class: "font-bold", "Assurances-vie 2ème décès :" }
-                div {
-                    div { class: "flex flex-row gap-6",
-                        ul { class: "ml-5 list-disc list-outside",
-                            li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
-                            li { "Capitaux décès bruts :" }
-                            li { "Abattement :" }
-                            li { "Part taxable :" }
-                            li { "Prélèvements :" }
-                            li { "Capitaux décès nets :" }
-                        }
-                        ul {
-                            li { class: "text-center",
-                                div { "Chaque enfant" }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_enfant().brut() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_enfant().abattement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_enfant().taxable() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_enfant().prelevement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_enfant().net() }
-                            }
-                        }
-                        ul {
-                            li { class: "text-center",
-                                div { "Total" }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_total().brut() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_total().abattement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_total().taxable() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_total().prelevement() }
-                            }
-                            li { class: "text-right",
-                                Euros { val: result.deuxieme_av_total().net() }
-                            }
-                        }
-                    }
+                AssuranceVie {
+                    enfant: result.deuxieme_av_enfant(),
+                    // Store bidon pour l'AV non affichée
+                    survivant: result.deuxieme_av_enfant(),
+                    affiche_survivant: false,
+                    total: result.deuxieme_av_total(),
                 }
             }
-            details {
-                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
-                open: "false",
+            details { class: "p-2", open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option totalité en usufruit :"
                 }
-                div { "TODO" }
+                OptionChoisie { option: result.option_totalite_us() }
             }
-            details {
-                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
-                open: "false",
+            details { class: "p-2", open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option 1/4 en pleine propriété :"
                 }
-                div { "TODO" }
+                OptionChoisie { option: result.option_1_4_pp() }
             }
-            details {
-                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
-                open: "false",
+            details { class: "p-2", open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option 1/4 en pleine propriété - 3/4 en usufruit :"
                 }
-                div { "TODO" }
+                OptionChoisie { option: result.option_1_4_pp_3_4_us() }
             }
-            details {
-                class: "p-2 open:bg-gray-100 dark:open:bg-gray-700",
-                open: "false",
+            details { class: "p-2", open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option quotité disponible en pleine propriété :"
                 }
-                div { "TODO" }
+                OptionChoisie { option: result.option_qd_pp() }
             }
         }
     }
