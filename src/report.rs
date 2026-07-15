@@ -117,7 +117,7 @@ fn AssuranceVie(enfant: Store<BeneficiaireState>, survivant: Store<BeneficiaireS
 
 // Affichage des résultat pour une des 4 options possibles
 #[component]
-fn OptionChoisie(option: Store<OptionState>) -> Element {
+fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Element {
     rsx! {
         div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
             h1 { class: "font-bold mt-2", "Répartition 1er décès :" }
@@ -134,6 +134,14 @@ fn OptionChoisie(option: Store<OptionState>) -> Element {
                         li { "Part taxable :" }
                         li { class: "font-semibold text-red-600 dark:text-red-400",
                             "Droits de succession :"
+                        }
+                        if !*snapshot.ignorer_couts_partage().read() {
+                            li { class: "font-semibold text-red-600 dark:text-red-400",
+                                "Droits de partage :"
+                            }
+                            li { class: "font-semibold text-red-600 dark:text-red-400",
+                                "Emoluments de partage :"
+                            }
                         }
                         li { "Héritage net :" }
                         li { class: "font-semibold text-green-600 dark:text-green-400",
@@ -155,6 +163,16 @@ fn OptionChoisie(option: Store<OptionState>) -> Element {
                         Euros {
                             class: "font-semibold text-red-600 dark:text-red-400",
                             val: option.premier_enfant().droits_succession(),
+                        }
+                        if !*snapshot.ignorer_couts_partage().read() {
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.premier_enfant().droits_partage(),
+                            }
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.premier_enfant().emoluments_partage(),
+                            }
                         }
                         Euros { val: option.premier_enfant().heritage_net() }
                         Euros {
@@ -178,6 +196,16 @@ fn OptionChoisie(option: Store<OptionState>) -> Element {
                             class: "font-semibold text-red-600 dark:text-red-400",
                             val: option.premier_survivant().droits_succession(),
                         }
+                        if !*snapshot.ignorer_couts_partage().read() {
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.premier_survivant().droits_partage(),
+                            }
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.premier_survivant().emoluments_partage(),
+                            }
+                        }
                         Euros { val: option.premier_survivant().heritage_net() }
                         Euros {
                             class: "font-semibold text-green-600 dark:text-green-400",
@@ -199,6 +227,16 @@ fn OptionChoisie(option: Store<OptionState>) -> Element {
                         Euros {
                             class: "font-semibold text-red-600 dark:text-red-400",
                             val: option.premier_total().droits_succession(),
+                        }
+                        if !*snapshot.ignorer_couts_partage().read() {
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.premier_total().droits_partage(),
+                            }
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.premier_total().emoluments_partage(),
+                            }
                         }
                         Euros { val: option.premier_total().heritage_net() }
                         Euros {
@@ -222,6 +260,14 @@ fn OptionChoisie(option: Store<OptionState>) -> Element {
                         li { class: "font-semibold text-red-600 dark:text-red-400",
                             "Droits de succession :"
                         }
+                        if !*snapshot.ignorer_couts_partage().read() {
+                            li { class: "font-semibold text-red-600 dark:text-red-400",
+                                "Droits de partage :"
+                            }
+                            li { class: "font-semibold text-red-600 dark:text-red-400",
+                                "Emoluments de partage :"
+                            }
+                        }
                         li { class: "font-semibold text-green-600 dark:text-green-400",
                             "Héritage net = Flux financier :"
                         }
@@ -240,6 +286,16 @@ fn OptionChoisie(option: Store<OptionState>) -> Element {
                         Euros {
                             class: "font-semibold text-red-600 dark:text-red-400",
                             val: option.deuxieme_enfant().droits_succession(),
+                        }
+                        if !*snapshot.ignorer_couts_partage().read() {
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.deuxieme_enfant().droits_partage(),
+                            }
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.deuxieme_enfant().emoluments_partage(),
+                            }
                         }
                         Euros {
                             class: "font-semibold text-green-600 dark:text-green-400",
@@ -261,6 +317,16 @@ fn OptionChoisie(option: Store<OptionState>) -> Element {
                             class: "font-semibold text-red-600 dark:text-red-400",
                             val: option.deuxieme_total().droits_succession(),
                         }
+                        if !*snapshot.ignorer_couts_partage().read() {
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.deuxieme_total().droits_partage(),
+                            }
+                            Euros {
+                                class: "font-semibold text-red-600 dark:text-red-400",
+                                val: option.deuxieme_total().emoluments_partage(),
+                            }
+                        }
                         Euros {
                             class: "font-semibold text-green-600 dark:text-green-400",
                             val: option.deuxieme_total().flux_financier(),
@@ -280,7 +346,7 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
         details {
             class: "text-gray-900 dark:text-white",
             class: if show_report() { " block" } else { "hidden" },
-            open: "true",
+            open: "false",
             summary { class: "m-2 text-sm leading-6 font-semibold select-none", "Détails du calcul :" }
             div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
                 h1 { class: "font-bold", "Données d'entrée :" }
@@ -447,25 +513,25 @@ pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_rep
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option totalité en usufruit :"
                 }
-                OptionChoisie { option: result.option_totalite_us() }
+                OptionChoisie { snapshot, option: result.option_totalite_us() }
             }
             details { class: "p-2", open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option 1/4 en pleine propriété :"
                 }
-                OptionChoisie { option: result.option_1_4_pp() }
+                OptionChoisie { snapshot, option: result.option_1_4_pp() }
             }
             details { class: "p-2", open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option 1/4 en pleine propriété - 3/4 en usufruit :"
                 }
-                OptionChoisie { option: result.option_1_4_pp_3_4_us() }
+                OptionChoisie { snapshot, option: result.option_1_4_pp_3_4_us() }
             }
             details { class: "p-2", open: "false",
                 summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
                     "Option quotité disponible en pleine propriété :"
                 }
-                OptionChoisie { option: result.option_qd_pp() }
+                OptionChoisie { snapshot, option: result.option_qd_pp() }
             }
         }
     }

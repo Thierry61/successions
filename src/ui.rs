@@ -170,7 +170,7 @@ fn InputWithLabel(id: &'static str, lab: &'static str, tooltip: &'static str, si
 fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
     rsx! {
         div { id,
-            Input { signal, store: None, input_type: InputType::Autres }
+            Input { signal, input_type: InputType::Autres }
         }
     }
 }
@@ -239,7 +239,6 @@ pub fn MainPart(cookies: String) -> Element {
                     lab: "Nombre d'enfants",
                     tooltip: "Nombre d'enfants communs du couple, doit être supérieur ou égal à 1.",
                     signal: input.nb_enfants(),
-                    store: None,
                     input_type: InputType::NbEnfants,
                 }
                 InputWithLabel {
@@ -263,7 +262,6 @@ pub fn MainPart(cookies: String) -> Element {
                     lab: "Dettes et impôts",
                     tooltip: "Dettes de la communauté, y compris les impôts restants à payer.",
                     signal: input.dettes(),
-                    store: None,
                     input_type: InputType::Autres,
                 }
                 InputWithLabel {
@@ -279,7 +277,6 @@ pub fn MainPart(cookies: String) -> Element {
                     lab: "Frais funéraires réels",
                     tooltip: "Frais funéraire réels déduits de l'actif successoral net (plan civil), par opposition au forfait de 1500€ déduit sur le plan fiscal.",
                     signal: input.frais_funeraires(),
-                    store: None,
                     input_type: InputType::Autres,
                 }
                 InputWithLabel {
@@ -287,7 +284,6 @@ pub fn MainPart(cookies: String) -> Element {
                     lab: "Donations partages",
                     tooltip: "Donations-partages de moins de 15 ans, conjonctives, égalitaires et hors dons Sarkozy (plan fiscal).",
                     signal: input.donations_partages(),
-                    store: None,
                     input_type: InputType::Autres,
                 }
             }
@@ -374,21 +370,18 @@ pub fn MainPart(cookies: String) -> Element {
                             lab: "Ordre des décès : vous puis votre conjoint",
                             tooltip: "Simulation supposant que vous décédiez avant votre conjoint.",
                             signal: input.ordre_deces(),
-                            store: None,
                         }
                         Checkbox {
                             id: "dispense-récompense",
                             lab: "Dispense de récompense demandée par survivant",
                             tooltip: "Dispense de récompense demandée par le conjoint survivant pour ses propres AV.",
                             signal: input.dispense_recompense(),
-                            store: None,
                         }
                         Checkbox {
                             id: "ignorer-couts-partage",
                             lab: "Ignorer les coûts de partage",
                             tooltip: "Ne pas calculer les coûts des partages (droits de partage et émouluments associés pour le notaire).",
                             signal: input.ignorer_couts_partage(),
-                            store: None,
                         }
                     }
                 }
