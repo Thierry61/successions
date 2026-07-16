@@ -70,6 +70,7 @@ pub struct InputState {
     ordre_deces: bool,
     dispense_recompense: bool,
     ignorer_couts_partage: bool,
+    ignorer_declaration_succession: bool,
     age_vous: i32,
     age_conjoint: i32,
     av_vous_conjoint: i32,
@@ -107,6 +108,7 @@ impl InputState {
                 "ordre_deces" => if let Ok(val) = val.parse::<i32>() { ret.ordre_deces = val == 1; }
                 "dispense_recompense" => if let Ok(val) = val.parse::<i32>() { ret.dispense_recompense = val == 1; }
                 "ignorer_couts_partage" => if let Ok(val) = val.parse::<i32>() { ret.ignorer_couts_partage = val == 1; }
+                "ignorer_declaration_succession" => if let Ok(val) = val.parse::<i32>() { ret.ignorer_declaration_succession = val == 1; }
                 "age_vous" => if let Ok(val) = val.parse() { ret.age_vous = val; }
                 "age_conjoint" => if let Ok(val) = val.parse() { ret.age_conjoint = val; }
                 "av_vous_conjoint" => if let Ok(val) = val.parse() { ret.av_vous_conjoint = val; }
@@ -139,6 +141,7 @@ impl InputState {
             ordre_deces: *store.ordre_deces().read(),
             dispense_recompense: *store.dispense_recompense().read(),
             ignorer_couts_partage: *store.ignorer_couts_partage().read(),
+            ignorer_declaration_succession: *store.ignorer_declaration_succession().read(),
             age_vous: *store.age_vous().read(),
             age_conjoint: *store.age_conjoint().read(),
             av_vous_conjoint: *store.av_vous_conjoint().read(),
@@ -162,6 +165,7 @@ impl InputState {
         store.ordre_deces().set(self.ordre_deces);
         store.dispense_recompense().set(self.dispense_recompense);
         store.ignorer_couts_partage().set(self.ignorer_couts_partage);
+        store.ignorer_declaration_succession().set(self.ignorer_declaration_succession);
         store.age_vous().set(self.age_vous);
         store.age_conjoint().set(self.age_conjoint);
         store.av_vous_conjoint().set(self.av_vous_conjoint);
@@ -186,6 +190,7 @@ impl InputState {
         set_cookie(&mut js, "ordre_deces", if *store.ordre_deces().read() { 1 } else { 0 }, if def.ordre_deces { 1 } else { 0 });
         set_cookie(&mut js, "dispense_recompense", if *store.dispense_recompense().read() { 1 } else { 0 }, if def.dispense_recompense { 1 } else { 0 });
         set_cookie(&mut js, "ignorer_couts_partage", if *store.ignorer_couts_partage().read() { 1 } else { 0 }, if def.ignorer_couts_partage { 1 } else { 0 });
+        set_cookie(&mut js, "ignorer_declaration_succession", if *store.ignorer_declaration_succession().read() { 1 } else { 0 }, if def.ignorer_declaration_succession { 1 } else { 0 });
         set_cookie(&mut js, "age_vous", *store.age_vous().read(), def.age_vous);
         set_cookie(&mut js, "age_conjoint", *store.age_conjoint().read(), def.age_conjoint);
         set_cookie(&mut js, "av_vous_conjoint", *store.av_vous_conjoint().read(), def.av_vous_conjoint);
@@ -248,6 +253,7 @@ pub struct HeritierState {
     droits_succession: i32,
     droits_partage: i32,
     emoluments_partage: i32,
+    emoluments_declaration_succession: i32,
     heritage_net: i32,
     flux_financier: i32,
     flux_financier_avec_av: i32,
@@ -266,6 +272,7 @@ impl HeritierState {
         store.droits_succession().set(self.droits_succession);
         store.droits_partage().set(self.droits_partage);
         store.emoluments_partage().set(self.emoluments_partage);
+        store.emoluments_declaration_succession().set(self.emoluments_declaration_succession);
         store.heritage_net().set(self.heritage_net);
         store.flux_financier().set(self.flux_financier);
         store.flux_financier_avec_av().set(self.flux_financier_avec_av);

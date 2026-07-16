@@ -42,6 +42,22 @@ fn Nb (num: ReadSignal<i32>) -> Element {
     }
 }
 
+// Met en évidence les coûts en rouge
+#[component]
+fn HilightDebit(children: Element) -> Element {
+    rsx! {
+        div { class: "font-semibold text-red-600 dark:text-red-400", {children} }
+    }
+}
+
+// Met en évidence les gains en vert
+#[component]
+fn HilightCredit(children: Element) -> Element {
+    rsx! {
+        div { class: "font-semibold text-green-600 dark:text-green-400", {children} }
+    }
+}
+
 // Affiche la distribution des assurances-vie aux bénéficiaires
 // (enfants, éventuellement survivant et total)
 // TODO: Trouver un moyen d'utiliser une Option<Store<BeneficiaireState>> pour le survivant
@@ -55,9 +71,11 @@ fn AssuranceVie(enfant: Store<BeneficiaireState>, survivant: Store<BeneficiaireS
                     li { "Capitaux décès bruts :" }
                     li { "Abattement :" }
                     li { "Part taxable :" }
-                    li { class: "font-semibold text-red-600 dark:text-red-400", "Prélèvements :" }
-                    li { class: "font-semibold text-green-600 dark:text-green-400",
-                        "Capitaux décès nets :"
+                    HilightDebit {
+                        li { "Prélèvements :" }
+                    }
+                    HilightCredit {
+                        li { "Capitaux décès nets :" }
                     }
                 }
                 ul {
@@ -67,13 +85,11 @@ fn AssuranceVie(enfant: Store<BeneficiaireState>, survivant: Store<BeneficiaireS
                     Euros { val: enfant.brut() }
                     Euros { val: enfant.abattement() }
                     Euros { val: enfant.taxable() }
-                    Euros {
-                        class: "font-semibold text-red-600 dark:text-red-400",
-                        val: enfant.prelevement(),
+                    HilightDebit {
+                        Euros { val: enfant.prelevement() }
                     }
-                    Euros {
-                        class: "font-semibold text-green-600 dark:text-green-400",
-                        val: enfant.net(),
+                    HilightCredit {
+                        Euros { val: enfant.net() }
                     }
                 }
                 if affiche_survivant {
@@ -84,13 +100,11 @@ fn AssuranceVie(enfant: Store<BeneficiaireState>, survivant: Store<BeneficiaireS
                         Euros { val: survivant.brut() }
                         Euros { val: survivant.abattement() }
                         Euros { val: survivant.taxable() }
-                        Euros {
-                            class: "font-semibold text-red-600 dark:text-red-400",
-                            val: survivant.prelevement(),
+                        HilightDebit {
+                            Euros { val: survivant.prelevement() }
                         }
-                        Euros {
-                            class: "font-semibold text-green-600 dark:text-green-400",
-                            val: survivant.net(),
+                        HilightCredit {
+                            Euros { val: survivant.net() }
                         }
                     }
                 }
@@ -101,18 +115,16 @@ fn AssuranceVie(enfant: Store<BeneficiaireState>, survivant: Store<BeneficiaireS
                     Euros { val: total.brut() }
                     Euros { val: total.abattement() }
                     Euros { val: total.taxable() }
-                    Euros {
-                        class: "font-semibold text-red-600 dark:text-red-400",
-                        val: total.prelevement(),
+                    HilightDebit {
+                        Euros { val: total.prelevement() }
                     }
-                    Euros {
-                        class: "font-semibold text-green-600 dark:text-green-400",
-                        val: total.net(),
+                    HilightCredit {
+                        Euros { val: total.net() }
                     }
                 }
             }
         }
-    }    
+    }
 }
 
 // Affichage des résultat pour une des 4 options possibles
@@ -132,22 +144,21 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         li { "Part fiscale :" }
                         li { "Abattement :" }
                         li { "Part taxable :" }
-                        li { class: "font-semibold text-red-600 dark:text-red-400",
-                            "Droits de succession :"
-                        }
-                        if !*snapshot.ignorer_couts_partage().read() {
-                            li { class: "font-semibold text-red-600 dark:text-red-400",
-                                "Droits de partage :"
+                        HilightDebit {
+                            li { "Droits de succession :" }
+                            if !*snapshot.ignorer_couts_partage().read() {
+                                li { "Droits de partage :" }
+                                li { "Emoluments de partage :" }
                             }
-                            li { class: "font-semibold text-red-600 dark:text-red-400",
-                                "Emoluments de partage :"
+                            if !*snapshot.ignorer_declaration_succession().read() {
+                                li { "Emoluments de déclaration de succession :" }
                             }
                         }
-                        li { "Héritage net :" }
-                        li { class: "font-semibold text-green-600 dark:text-green-400",
-                            "Flux financier :"
+                        HilightCredit {
+                            li { "Héritage net :" }
+                            li { "Flux financier :" }
+                            li { "Flux financier avec AV:" }
                         }
-                        li { "Flux financier avec AV:" }
                     }
                     ul {
                         li { class: "text-center",
@@ -160,26 +171,21 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         Euros { val: option.premier_enfant().part_fiscale() }
                         Euros { val: option.premier_enfant().abattement() }
                         Euros { val: option.premier_enfant().taxable() }
-                        Euros {
-                            class: "font-semibold text-red-600 dark:text-red-400",
-                            val: option.premier_enfant().droits_succession(),
-                        }
-                        if !*snapshot.ignorer_couts_partage().read() {
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.premier_enfant().droits_partage(),
+                        HilightDebit {
+                            Euros { val: option.premier_enfant().droits_succession() }
+                            if !*snapshot.ignorer_couts_partage().read() {
+                                Euros { val: option.premier_enfant().droits_partage() }
+                                Euros { val: option.premier_enfant().emoluments_partage() }
                             }
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.premier_enfant().emoluments_partage(),
+                            if !*snapshot.ignorer_declaration_succession().read() {
+                                Euros { val: option.premier_enfant().emoluments_declaration_succession() }
                             }
                         }
-                        Euros { val: option.premier_enfant().heritage_net() }
-                        Euros {
-                            class: "font-semibold text-green-600 dark:text-green-400",
-                            val: option.premier_enfant().flux_financier(),
+                        HilightCredit {
+                            Euros { val: option.premier_enfant().heritage_net() }
+                            Euros { val: option.premier_enfant().flux_financier() }
+                            Euros { val: option.premier_enfant().flux_financier_avec_av() }
                         }
-                        Euros { val: option.premier_enfant().flux_financier_avec_av() }
                     }
                     ul {
                         li { class: "text-center",
@@ -192,26 +198,21 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         Euros { val: option.premier_survivant().part_fiscale() }
                         Euros { val: option.premier_survivant().abattement() }
                         Euros { val: option.premier_survivant().taxable() }
-                        Euros {
-                            class: "font-semibold text-red-600 dark:text-red-400",
-                            val: option.premier_survivant().droits_succession(),
-                        }
-                        if !*snapshot.ignorer_couts_partage().read() {
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.premier_survivant().droits_partage(),
+                        HilightDebit {
+                            Euros { val: option.premier_survivant().droits_succession() }
+                            if !*snapshot.ignorer_couts_partage().read() {
+                                Euros { val: option.premier_survivant().droits_partage() }
+                                Euros { val: option.premier_survivant().emoluments_partage() }
                             }
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.premier_survivant().emoluments_partage(),
+                            if !*snapshot.ignorer_declaration_succession().read() {
+                                Euros { val: option.premier_survivant().emoluments_declaration_succession() }
                             }
                         }
-                        Euros { val: option.premier_survivant().heritage_net() }
-                        Euros {
-                            class: "font-semibold text-green-600 dark:text-green-400",
-                            val: option.premier_survivant().flux_financier(),
+                        HilightCredit {
+                            Euros { val: option.premier_survivant().heritage_net() }
+                            Euros { val: option.premier_survivant().flux_financier() }
+                            Euros { val: option.premier_survivant().flux_financier_avec_av() }
                         }
-                        Euros { val: option.premier_survivant().flux_financier_avec_av() }
                     }
                     ul {
                         li { class: "text-center",
@@ -224,26 +225,21 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         Euros { val: option.premier_total().part_fiscale() }
                         Euros { val: option.premier_total().abattement() }
                         Euros { val: option.premier_total().taxable() }
-                        Euros {
-                            class: "font-semibold text-red-600 dark:text-red-400",
-                            val: option.premier_total().droits_succession(),
-                        }
-                        if !*snapshot.ignorer_couts_partage().read() {
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.premier_total().droits_partage(),
+                        HilightDebit {
+                            Euros { val: option.premier_total().droits_succession() }
+                            if !*snapshot.ignorer_couts_partage().read() {
+                                Euros { val: option.premier_total().droits_partage() }
+                                Euros { val: option.premier_total().emoluments_partage() }
                             }
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.premier_total().emoluments_partage(),
+                            if !*snapshot.ignorer_declaration_succession().read() {
+                                Euros { val: option.premier_total().emoluments_declaration_succession() }
                             }
                         }
-                        Euros { val: option.premier_total().heritage_net() }
-                        Euros {
-                            class: "font-semibold text-green-600 dark:text-green-400",
-                            val: option.premier_total().flux_financier(),
+                        HilightCredit {
+                            Euros { val: option.premier_total().heritage_net() }
+                            Euros { val: option.premier_total().flux_financier() }
+                            Euros { val: option.premier_total().flux_financier_avec_av() }
                         }
-                        Euros { val: option.premier_total().flux_financier_avec_av() }
                     }
                 }
             }
@@ -257,22 +253,21 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         li { "Part fiscale :" }
                         li { "Abattement :" }
                         li { "Part taxable :" }
-                        li { class: "font-semibold text-red-600 dark:text-red-400",
-                            "Droits de succession :"
-                        }
-                        if !*snapshot.ignorer_couts_partage().read() {
-                            li { class: "font-semibold text-red-600 dark:text-red-400",
-                                "Droits de partage :"
+                        HilightDebit {
+                            li { "Droits de succession :" }
+                            if !*snapshot.ignorer_couts_partage().read() {
+                                li { "Droits de partage :" }
+                                li { "Emoluments de partage :" }
                             }
-                            li { class: "font-semibold text-red-600 dark:text-red-400",
-                                "Emoluments de partage :"
+                            if !*snapshot.ignorer_declaration_succession().read() {
+                                li { "Emoluments de déclaration de succession :" }
                             }
                         }
-                        li { class: "font-semibold text-green-600 dark:text-green-400",
-                            "Héritage net = Flux financier :"
+                        HilightCredit {
+                            li { "Héritage net = Flux financier :" }
+                            li { "Flux financier avec AV:" }
+                            li { "Flux financier total des 2 décès:" }
                         }
-                        li { "Flux financier avec AV:" }
-                        li { "Flux financier total des 2 décès:" }
                     }
                     ul {
                         li { class: "text-center",
@@ -283,26 +278,21 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         Euros { val: option.deuxieme_enfant().part_fiscale() }
                         Euros { val: option.deuxieme_enfant().abattement() }
                         Euros { val: option.deuxieme_enfant().taxable() }
-                        Euros {
-                            class: "font-semibold text-red-600 dark:text-red-400",
-                            val: option.deuxieme_enfant().droits_succession(),
-                        }
-                        if !*snapshot.ignorer_couts_partage().read() {
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.deuxieme_enfant().droits_partage(),
+                        HilightDebit {
+                            Euros { val: option.deuxieme_enfant().droits_succession() }
+                            if !*snapshot.ignorer_couts_partage().read() {
+                                Euros { val: option.deuxieme_enfant().droits_partage() }
+                                Euros { val: option.deuxieme_enfant().emoluments_partage() }
                             }
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.deuxieme_enfant().emoluments_partage(),
+                            if !*snapshot.ignorer_declaration_succession().read() {
+                                Euros { val: option.deuxieme_enfant().emoluments_declaration_succession() }
                             }
                         }
-                        Euros {
-                            class: "font-semibold text-green-600 dark:text-green-400",
-                            val: option.deuxieme_enfant().flux_financier(),
+                        HilightCredit {
+                            Euros { val: option.deuxieme_enfant().flux_financier() }
+                            Euros { val: option.deuxieme_enfant().flux_financier_avec_av() }
+                            Euros { val: option.cumul_enfant() }
                         }
-                        Euros { val: option.deuxieme_enfant().flux_financier_avec_av() }
-                        Euros { val: option.cumul_enfant() }
                     }
                     ul {
                         li { class: "text-center",
@@ -313,26 +303,21 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         Euros { val: option.deuxieme_total().part_fiscale() }
                         Euros { val: option.deuxieme_total().abattement() }
                         Euros { val: option.deuxieme_total().taxable() }
-                        Euros {
-                            class: "font-semibold text-red-600 dark:text-red-400",
-                            val: option.deuxieme_total().droits_succession(),
-                        }
-                        if !*snapshot.ignorer_couts_partage().read() {
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.deuxieme_total().droits_partage(),
+                        HilightDebit {
+                            Euros { val: option.deuxieme_total().droits_succession() }
+                            if !*snapshot.ignorer_couts_partage().read() {
+                                Euros { val: option.deuxieme_total().droits_partage() }
+                                Euros { val: option.deuxieme_total().emoluments_partage() }
                             }
-                            Euros {
-                                class: "font-semibold text-red-600 dark:text-red-400",
-                                val: option.deuxieme_total().emoluments_partage(),
+                            if !*snapshot.ignorer_declaration_succession().read() {
+                                Euros { val: option.deuxieme_total().emoluments_declaration_succession() }
                             }
                         }
-                        Euros {
-                            class: "font-semibold text-green-600 dark:text-green-400",
-                            val: option.deuxieme_total().flux_financier(),
+                        HilightCredit {
+                            Euros { val: option.deuxieme_total().flux_financier() }
+                            Euros { val: option.deuxieme_total().flux_financier_avec_av() }
+                            Euros { val: option.cumul_total() }
                         }
-                        Euros { val: option.deuxieme_total().flux_financier_avec_av() }
-                        Euros { val: option.cumul_total() }
                     }
                 }
             }

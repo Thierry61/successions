@@ -40,7 +40,7 @@ fn Checkbox(id: &'static str, lab: &'static str, tooltip: &'static str, signal: 
                 onclick: move |_| {
                     signal.toggle();
                     // Recalcule le champ biens meublants si forfait mobilier est coché.
-                    gere_biens_meublants(store, true);
+                    gere_biens_meublants(store);
                 },
                 checked: signal,
             }
@@ -107,7 +107,7 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
             }
             // Puis effectue éventuellement un traitement global inter-champs
             if input_type == InputType::ResidencePrincipale || input_type == InputType::Placements {
-               gere_biens_meublants(store, false);
+               gere_biens_meublants(store);
             }
         };
         // Vérifie le champ caractère par caractère
@@ -176,7 +176,7 @@ fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
 }
 
 // Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de l'actif brut successoral en permanence
-fn gere_biens_meublants(store: Option<Store<InputState>>, changement_mode: bool) {
+fn gere_biens_meublants(store: Option<Store<InputState>>) {
     if let Some(store) = store {
         let forfait_mobilier = *store.forfait_mobilier().read();
         if forfait_mobilier {
@@ -186,14 +186,6 @@ fn gere_biens_meublants(store: Option<Store<InputState>>, changement_mode: bool)
             store
                 .biens_meublants()
                 .set(calcul_biens_meublants(residence_principale, placements, dettes));
-        } else {
-            if changement_mode {
-                // Traitement erroné qui était effectué en quittant le mode forfait : doubler les biens meublants
-                // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
-                // au lieu d'un actif de succession)
-                // let biens_meublants = *store.biens_meublants().read();
-                // store.biens_meublants().set(2*biens_meublants);
-            }
         }
     }
 }
@@ -300,7 +292,7 @@ pub fn MainPart(cookies: String) -> Element {
                         div { class: "pl-2 py-1", "Conjoint" }
                         div { class: "col-span-2 tooltip-top tooltip",
                             span { class: "tooltip-text w-70!",
-                                "Permet de calculer le pourcentage de droit à payer sur la nue-propriété et de déterminer la fiscalité des PER."
+                                "Permet de déterminer le barème fiscal de l'usufruit et de la nue-propriété, ainsi que la fiscalité des PER."
                             }
                             "Ages des époux"
                         }
@@ -374,14 +366,20 @@ pub fn MainPart(cookies: String) -> Element {
                         Checkbox {
                             id: "dispense-récompense",
                             lab: "Dispense de récompense demandée par survivant",
-                            tooltip: "Dispense de récompense demandée par le conjoint survivant pour ses propres AV.",
+                            tooltip: "Dispense de récompense demandée par le conjoint survivant pour les AV du défunt au bénéfice des enfants.",
                             signal: input.dispense_recompense(),
                         }
                         Checkbox {
                             id: "ignorer-couts-partage",
                             lab: "Ignorer les coûts de partage",
-                            tooltip: "Ne pas calculer les coûts des partages (droits de partage et émouluments associés pour le notaire).",
+                            tooltip: "Ne pas calculer les coûts de partage (droits de partage et émoluments associés).",
                             signal: input.ignorer_couts_partage(),
+                        }
+                        Checkbox {
+                            id: "ignorer-couts-partage",
+                            lab: "Ignorer la déclaration de succession",
+                            tooltip: "Ne pas calculer les émoluments de la déclaration de succession.",
+                            signal: input.ignorer_declaration_succession(),
                         }
                     }
                 }
