@@ -3,8 +3,8 @@ use dioxus::prelude::*;
 mod compute;
 use crate::data::compute::compute;
 
-pub const FORFAIT_FRAIS_FUNERAIRES : i32 = 1500;
-pub const REMISE_RP_FISCALE : f64 = 0.2;
+pub const FORFAIT_FRAIS_FUNERAIRES: i32 = 1500;
+pub const REMISE_RP_FISCALE: f64 = 0.2;
 pub const DEFAUT_NB_ENFANTS: i32 = 2;
 pub const ABATTEMENT_AV: i32 = 152_500;
 pub const ABATTEMENT_DROITS: i32 = 100_000;
@@ -28,7 +28,7 @@ fn set_cookie(js: &mut String, name: &'static str, val: i32, default_val: i32) {
     if val != default_val {
         // Crée le cookie. Utilise l'attribut expires plutôt que maxAge car la disponibilité de ce dernier est plus limitée.
         js.push_str(&format!(r#"cookieStore.set({{name: "{name}", value: {val}, expires: Date.now() + {max_age}}}), "#));
-    } else  {
+    } else {
         // Détruit le cookie
         js.push_str(&format!(r#"cookieStore.delete("{name}"), "#));
     }
@@ -41,14 +41,19 @@ fn test_set_cookie() {
     let mut js = String::new();
     set_cookie(&mut js, "nb_enfants", 3, 2);
     set_cookie(&mut js, "dettes", 0, 0);
-    let expected = format!(r#"cookieStore.set({{name: "nb_enfants", value: 3, expires: Date.now() + 34560000}}), cookieStore.delete("dettes"), "#);
+    let expected = format!(
+        r#"cookieStore.set({{name: "nb_enfants", value: 3, expires: Date.now() + 34560000}}), cookieStore.delete("dettes"), "#
+    );
     assert_eq!(&js, &expected)
 }
 
 // Calcul des biens meublants lorsque le forfait mobilier est utilisé
 // (5% de l'actif successoral brut)
 pub fn calcul_biens_meublants(residence_principale: i32, placements: i32, dettes: i32) -> i32 {
-    ((0.05 * (residence_principale as f64 * (1.0 - REMISE_RP_FISCALE) + placements as f64 - dettes as f64)) / 2.0) as i32
+    ((0.05
+        * (residence_principale as f64 * (1.0 - REMISE_RP_FISCALE) + placements as f64
+            - dettes as f64))
+        / 2.0) as i32
 }
 
 #[test]
@@ -82,11 +87,17 @@ pub struct InputState {
 }
 impl InputState {
     // Génère une structure avec les valeurs par défaut
-    pub fn new () -> Self {
-        Self { nb_enfants: DEFAUT_NB_ENFANTS, forfait_mobilier: true, ordre_deces: true, dispense_recompense: true, ..Default::default() }
+    pub fn new() -> Self {
+        Self {
+            nb_enfants: DEFAUT_NB_ENFANTS,
+            forfait_mobilier: true,
+            ordre_deces: true,
+            dispense_recompense: true,
+            ..Default::default()
+        }
     }
     // Génère une structure avec les valeurs par défaut surchargées par la valeur des cookies
-    pub fn new_from_cookies (cookies: &str) -> Self {
+    pub fn new_from_cookies(cookies: &str) -> Self {
         let mut ret = Self::new();
         for cookie in cookies.split(';') {
             let cookie = cookie.trim();
@@ -97,38 +108,119 @@ impl InputState {
             let name = vec[0].trim();
             let val = vec[1].trim();
             match name {
-                "nb_enfants" => if let Ok(val) = val.parse() { ret.nb_enfants = val; }
-                "dettes" => if let Ok(val) = val.parse() { ret.dettes = val; }
-                "residence_principale" => if let Ok(val) = val.parse() { ret.residence_principale = val; }
-                "placements" => if let Ok(val) = val.parse() { ret.placements = val; }
-                "biens_meublants" => if let Ok(val) = val.parse() { ret.biens_meublants = val; }
-                "frais_funeraires" => if let Ok(val) = val.parse() { ret.frais_funeraires = val; }
-                "donations_partages" => if let Ok(val) = val.parse() { ret.donations_partages = val; }
-                "forfait_mobilier" => if let Ok(val) = val.parse::<i32>() { ret.forfait_mobilier = val == 1; }
-                "ordre_deces" => if let Ok(val) = val.parse::<i32>() { ret.ordre_deces = val == 1; }
-                "dispense_recompense" => if let Ok(val) = val.parse::<i32>() { ret.dispense_recompense = val == 1; }
-                "ignorer_couts_partage" => if let Ok(val) = val.parse::<i32>() { ret.ignorer_couts_partage = val == 1; }
-                "ignorer_declaration_succession" => if let Ok(val) = val.parse::<i32>() { ret.ignorer_declaration_succession = val == 1; }
-                "age_vous" => if let Ok(val) = val.parse() { ret.age_vous = val; }
-                "age_conjoint" => if let Ok(val) = val.parse() { ret.age_conjoint = val; }
-                "av_vous_conjoint" => if let Ok(val) = val.parse() { ret.av_vous_conjoint = val; }
-                "av_conjoint_conjoint" => if let Ok(val) = val.parse() { ret.av_conjoint_conjoint = val; }
-                "av_vous_enfants" => if let Ok(val) = val.parse() { ret.av_vous_enfants = val; }
-                "av_conjoint_enfants" => if let Ok(val) = val.parse() { ret.av_conjoint_enfants = val; }
-                "per_vous_conjoint" => if let Ok(val) = val.parse() { ret.per_vous_conjoint = val; }
-                "per_conjoint_conjoint" => if let Ok(val) = val.parse() { ret.per_conjoint_conjoint = val; }
+                "nb_enfants" => {
+                    if let Ok(val) = val.parse() {
+                        ret.nb_enfants = val;
+                    }
+                }
+                "dettes" => {
+                    if let Ok(val) = val.parse() {
+                        ret.dettes = val;
+                    }
+                }
+                "residence_principale" => {
+                    if let Ok(val) = val.parse() {
+                        ret.residence_principale = val;
+                    }
+                }
+                "placements" => {
+                    if let Ok(val) = val.parse() {
+                        ret.placements = val;
+                    }
+                }
+                "biens_meublants" => {
+                    if let Ok(val) = val.parse() {
+                        ret.biens_meublants = val;
+                    }
+                }
+                "frais_funeraires" => {
+                    if let Ok(val) = val.parse() {
+                        ret.frais_funeraires = val;
+                    }
+                }
+                "donations_partages" => {
+                    if let Ok(val) = val.parse() {
+                        ret.donations_partages = val;
+                    }
+                }
+                "forfait_mobilier" => {
+                    if let Ok(val) = val.parse::<i32>() {
+                        ret.forfait_mobilier = val == 1;
+                    }
+                }
+                "ordre_deces" => {
+                    if let Ok(val) = val.parse::<i32>() {
+                        ret.ordre_deces = val == 1;
+                    }
+                }
+                "dispense_recompense" => {
+                    if let Ok(val) = val.parse::<i32>() {
+                        ret.dispense_recompense = val == 1;
+                    }
+                }
+                "ignorer_couts_partage" => {
+                    if let Ok(val) = val.parse::<i32>() {
+                        ret.ignorer_couts_partage = val == 1;
+                    }
+                }
+                "ignorer_declaration_succession" => {
+                    if let Ok(val) = val.parse::<i32>() {
+                        ret.ignorer_declaration_succession = val == 1;
+                    }
+                }
+                "age_vous" => {
+                    if let Ok(val) = val.parse() {
+                        ret.age_vous = val;
+                    }
+                }
+                "age_conjoint" => {
+                    if let Ok(val) = val.parse() {
+                        ret.age_conjoint = val;
+                    }
+                }
+                "av_vous_conjoint" => {
+                    if let Ok(val) = val.parse() {
+                        ret.av_vous_conjoint = val;
+                    }
+                }
+                "av_conjoint_conjoint" => {
+                    if let Ok(val) = val.parse() {
+                        ret.av_conjoint_conjoint = val;
+                    }
+                }
+                "av_vous_enfants" => {
+                    if let Ok(val) = val.parse() {
+                        ret.av_vous_enfants = val;
+                    }
+                }
+                "av_conjoint_enfants" => {
+                    if let Ok(val) = val.parse() {
+                        ret.av_conjoint_enfants = val;
+                    }
+                }
+                "per_vous_conjoint" => {
+                    if let Ok(val) = val.parse() {
+                        ret.per_vous_conjoint = val;
+                    }
+                }
+                "per_conjoint_conjoint" => {
+                    if let Ok(val) = val.parse() {
+                        ret.per_conjoint_conjoint = val;
+                    }
+                }
                 _ => continue,
             }
             // On recalcule les biens meublants si le forfait mobilier est utilisé
             // (dès fois que le cookie biens meublants soit erroné)
             if ret.forfait_mobilier {
-                ret.biens_meublants = calcul_biens_meublants (ret.residence_principale, ret.placements, ret.dettes);
+                ret.biens_meublants =
+                    calcul_biens_meublants(ret.residence_principale, ret.placements, ret.dettes);
             }
         }
         ret
     }
     // J'ai codé en dur cette fonction car je n'ai pas trouvé de moyen de reconstruire automatiquement la structure sous-jacente au store
-    pub fn from (store: Store<InputState>) -> Self {
+    pub fn from(store: Store<InputState>) -> Self {
         Self {
             nb_enfants: *store.nb_enfants().read(),
             dettes: *store.dettes().read(),
@@ -164,8 +256,12 @@ impl InputState {
         store.forfait_mobilier().set(self.forfait_mobilier);
         store.ordre_deces().set(self.ordre_deces);
         store.dispense_recompense().set(self.dispense_recompense);
-        store.ignorer_couts_partage().set(self.ignorer_couts_partage);
-        store.ignorer_declaration_succession().set(self.ignorer_declaration_succession);
+        store
+            .ignorer_couts_partage()
+            .set(self.ignorer_couts_partage);
+        store
+            .ignorer_declaration_succession()
+            .set(self.ignorer_declaration_succession);
         store.age_vous().set(self.age_vous);
         store.age_conjoint().set(self.age_conjoint);
         store.av_vous_conjoint().set(self.av_vous_conjoint);
@@ -173,32 +269,144 @@ impl InputState {
         store.av_vous_enfants().set(self.av_vous_enfants);
         store.av_conjoint_enfants().set(self.av_conjoint_enfants);
         store.per_vous_conjoint().set(self.per_vous_conjoint);
-        store.per_conjoint_conjoint().set(self.per_conjoint_conjoint);
+        store
+            .per_conjoint_conjoint()
+            .set(self.per_conjoint_conjoint);
     }
     // Idem pour cette fonction codée en dur pour sauvergarder les entrées dans des cookies
     pub fn to_cookies(store: Store<InputState>) {
         let def = InputState::new();
         let mut js = "await Promise.all([".to_string();
-        set_cookie(&mut js, "nb_enfants", *store.nb_enfants().read(), def.nb_enfants);
+        set_cookie(
+            &mut js,
+            "nb_enfants",
+            *store.nb_enfants().read(),
+            def.nb_enfants,
+        );
         set_cookie(&mut js, "dettes", *store.dettes().read(), def.dettes);
-        set_cookie(&mut js, "residence_principale", *store.residence_principale().read(), def.residence_principale);
-        set_cookie(&mut js, "placements", *store.placements().read(), def.placements);
-        set_cookie(&mut js, "biens_meublants", *store.biens_meublants().read(), def.biens_meublants);
-        set_cookie(&mut js, "frais_funeraires", *store.frais_funeraires().read(), def.frais_funeraires);
-        set_cookie(&mut js, "donations_partages", *store.donations_partages().read(), def.donations_partages);
-        set_cookie(&mut js, "forfait_mobilier", if *store.forfait_mobilier().read() { 1 } else { 0 }, if def.forfait_mobilier { 1 } else { 0 });
-        set_cookie(&mut js, "ordre_deces", if *store.ordre_deces().read() { 1 } else { 0 }, if def.ordre_deces { 1 } else { 0 });
-        set_cookie(&mut js, "dispense_recompense", if *store.dispense_recompense().read() { 1 } else { 0 }, if def.dispense_recompense { 1 } else { 0 });
-        set_cookie(&mut js, "ignorer_couts_partage", if *store.ignorer_couts_partage().read() { 1 } else { 0 }, if def.ignorer_couts_partage { 1 } else { 0 });
-        set_cookie(&mut js, "ignorer_declaration_succession", if *store.ignorer_declaration_succession().read() { 1 } else { 0 }, if def.ignorer_declaration_succession { 1 } else { 0 });
+        set_cookie(
+            &mut js,
+            "residence_principale",
+            *store.residence_principale().read(),
+            def.residence_principale,
+        );
+        set_cookie(
+            &mut js,
+            "placements",
+            *store.placements().read(),
+            def.placements,
+        );
+        set_cookie(
+            &mut js,
+            "biens_meublants",
+            *store.biens_meublants().read(),
+            def.biens_meublants,
+        );
+        set_cookie(
+            &mut js,
+            "frais_funeraires",
+            *store.frais_funeraires().read(),
+            def.frais_funeraires,
+        );
+        set_cookie(
+            &mut js,
+            "donations_partages",
+            *store.donations_partages().read(),
+            def.donations_partages,
+        );
+        set_cookie(
+            &mut js,
+            "forfait_mobilier",
+            if *store.forfait_mobilier().read() {
+                1
+            } else {
+                0
+            },
+            if def.forfait_mobilier { 1 } else { 0 },
+        );
+        set_cookie(
+            &mut js,
+            "ordre_deces",
+            if *store.ordre_deces().read() { 1 } else { 0 },
+            if def.ordre_deces { 1 } else { 0 },
+        );
+        set_cookie(
+            &mut js,
+            "dispense_recompense",
+            if *store.dispense_recompense().read() {
+                1
+            } else {
+                0
+            },
+            if def.dispense_recompense { 1 } else { 0 },
+        );
+        set_cookie(
+            &mut js,
+            "ignorer_couts_partage",
+            if *store.ignorer_couts_partage().read() {
+                1
+            } else {
+                0
+            },
+            if def.ignorer_couts_partage { 1 } else { 0 },
+        );
+        set_cookie(
+            &mut js,
+            "ignorer_declaration_succession",
+            if *store.ignorer_declaration_succession().read() {
+                1
+            } else {
+                0
+            },
+            if def.ignorer_declaration_succession {
+                1
+            } else {
+                0
+            },
+        );
         set_cookie(&mut js, "age_vous", *store.age_vous().read(), def.age_vous);
-        set_cookie(&mut js, "age_conjoint", *store.age_conjoint().read(), def.age_conjoint);
-        set_cookie(&mut js, "av_vous_conjoint", *store.av_vous_conjoint().read(), def.av_vous_conjoint);
-        set_cookie(&mut js, "av_conjoint_conjoint", *store.av_conjoint_conjoint().read(), def.av_conjoint_conjoint);
-        set_cookie(&mut js, "av_vous_enfants", *store.av_vous_enfants().read(), def.av_vous_enfants);
-        set_cookie(&mut js, "av_conjoint_enfants", *store.av_conjoint_enfants().read(), def.av_conjoint_enfants);
-        set_cookie(&mut js, "per_vous_conjoint", *store.per_vous_conjoint().read(), def.per_vous_conjoint);
-        set_cookie(&mut js, "per_conjoint_conjoint", *store.per_conjoint_conjoint().read(), def.per_conjoint_conjoint);
+        set_cookie(
+            &mut js,
+            "age_conjoint",
+            *store.age_conjoint().read(),
+            def.age_conjoint,
+        );
+        set_cookie(
+            &mut js,
+            "av_vous_conjoint",
+            *store.av_vous_conjoint().read(),
+            def.av_vous_conjoint,
+        );
+        set_cookie(
+            &mut js,
+            "av_conjoint_conjoint",
+            *store.av_conjoint_conjoint().read(),
+            def.av_conjoint_conjoint,
+        );
+        set_cookie(
+            &mut js,
+            "av_vous_enfants",
+            *store.av_vous_enfants().read(),
+            def.av_vous_enfants,
+        );
+        set_cookie(
+            &mut js,
+            "av_conjoint_enfants",
+            *store.av_conjoint_enfants().read(),
+            def.av_conjoint_enfants,
+        );
+        set_cookie(
+            &mut js,
+            "per_vous_conjoint",
+            *store.per_vous_conjoint().read(),
+            def.per_vous_conjoint,
+        );
+        set_cookie(
+            &mut js,
+            "per_conjoint_conjoint",
+            *store.per_conjoint_conjoint().read(),
+            def.per_conjoint_conjoint,
+        );
         js.push_str("]);");
         execute_js(js);
     }
@@ -272,10 +480,14 @@ impl HeritierState {
         store.droits_succession().set(self.droits_succession);
         store.droits_partage().set(self.droits_partage);
         store.emoluments_partage().set(self.emoluments_partage);
-        store.emoluments_declaration_succession().set(self.emoluments_declaration_succession);
+        store
+            .emoluments_declaration_succession()
+            .set(self.emoluments_declaration_succession);
         store.heritage_net().set(self.heritage_net);
         store.flux_financier().set(self.flux_financier);
-        store.flux_financier_avec_av().set(self.flux_financier_avec_av);
+        store
+            .flux_financier_avec_av()
+            .set(self.flux_financier_avec_av);
     }
 }
 
@@ -311,10 +523,18 @@ impl OptionState {
         self.premier_total.to(store.premier_total().into());
         store.premier_etat().set(self.premier_etat);
         store.premier_notaire().set(self.premier_notaire);
-        store.deuxieme_us_survivant().set(self.deuxieme_us_survivant);
-        store.deuxieme_pp_survivant().set(self.deuxieme_pp_survivant);
-        store.deuxieme_actif_net_succession_civil().set(self.deuxieme_actif_net_succession_civil);
-        store.deuxieme_actif_net_succession_fiscal().set(self.deuxieme_actif_net_succession_fiscal);
+        store
+            .deuxieme_us_survivant()
+            .set(self.deuxieme_us_survivant);
+        store
+            .deuxieme_pp_survivant()
+            .set(self.deuxieme_pp_survivant);
+        store
+            .deuxieme_actif_net_succession_civil()
+            .set(self.deuxieme_actif_net_succession_civil);
+        store
+            .deuxieme_actif_net_succession_fiscal()
+            .set(self.deuxieme_actif_net_succession_fiscal);
         self.deuxieme_enfant.to(store.deuxieme_enfant().into());
         self.deuxieme_total.to(store.deuxieme_total().into());
         store.deuxieme_etat().set(self.deuxieme_etat);
@@ -326,7 +546,8 @@ impl OptionState {
     }
     // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
     pub fn cumul(&mut self, nb_enfants: i32) {
-        self.cumul_enfant = self.premier_enfant.flux_financier_avec_av + self.deuxieme_enfant.flux_financier_avec_av;
+        self.cumul_enfant = self.premier_enfant.flux_financier_avec_av
+            + self.deuxieme_enfant.flux_financier_avec_av;
         self.cumul_etat = self.premier_etat + self.deuxieme_etat;
         self.cumul_notaire = self.premier_notaire + self.deuxieme_notaire;
         self.cumul_total = self.cumul_enfant * nb_enfants + self.cumul_etat + self.cumul_notaire;
@@ -348,28 +569,36 @@ pub struct FractionnementPropriete {
 impl FractionnementPropriete {
     // Création du fractionnement pour chaque option
     fn new_totalite_us() -> Self {
-        Self { pp_survivant: 0.0, us_survivant: 1.0 }
+        Self {
+            pp_survivant: 0.0,
+            us_survivant: 1.0,
+        }
     }
     fn new_1_4_pp() -> Self {
-        Self { pp_survivant: 1.0/4.0, us_survivant: 0.0 }
+        Self {
+            pp_survivant: 1.0 / 4.0,
+            us_survivant: 0.0,
+        }
     }
     fn new_1_4_pp_3_4_us() -> Self {
-        Self { pp_survivant: 1.0/4.0, us_survivant: 3.0/4.0 }
+        Self {
+            pp_survivant: 1.0 / 4.0,
+            us_survivant: 3.0 / 4.0,
+        }
     }
     fn new_qd_pp(nb_enfants: i32) -> Self {
-        let qd = match nb_enfants { 0 => 3.0/4.0, 1 => 1.0/2.0, 2 => 1.0/3.0, _ => 1.0/4.0 };
-        Self { pp_survivant: qd, us_survivant: 0.0 }
+        let qd = match nb_enfants {
+            0 => 3.0 / 4.0,
+            1 => 1.0 / 2.0,
+            2 => 1.0 / 3.0,
+            _ => 1.0 / 4.0,
+        };
+        Self {
+            pp_survivant: qd,
+            us_survivant: 0.0,
+        }
     }
 }
-
-// Concernant les récompenses, voici le résumé des échanges sur le forum MoneyVox :
-// - AV du conjoint survivant : le survivant conserve son contrat mais il doit une récompense à la communauté (sur le plan fiscal civil uniquement)
-// - PERin du conjoint survivant : le survivant conserve son contrat sans devoir de récompense à la communauté (le contrat est un propre du survivant)
-// - AV ou PERin du défunt au bénéfice du conjoint : pas de récompenses dues (le capital devient un propre du survivant)
-// - AV du défunt au bénéfice des enfants : le défunt doit une récompense à la communauté (sauf si le survivant a proposé une dispense de récompense)
-// Nota :
-// - toutes les récompenses gérées sont dues à la communauté et sont donc inscrites à l'actif de la communauté
-// - en parallèle elles sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
 
 #[derive(Store, Default, Clone)]
 pub struct PremierDeces {
@@ -385,15 +614,27 @@ pub struct PremierDeces {
 }
 impl PremierDeces {
     pub fn to(&self, store: Store<PremierDeces>) {
-        store.recompense_due_par_le_survivant().set(self.recompense_due_par_le_survivant);
-        store.recompense_due_par_le_defunt().set(self.recompense_due_par_le_defunt);
-        store.actif_brut_communaute().set(self.actif_brut_communaute);
+        store
+            .recompense_due_par_le_survivant()
+            .set(self.recompense_due_par_le_survivant);
+        store
+            .recompense_due_par_le_defunt()
+            .set(self.recompense_due_par_le_defunt);
+        store
+            .actif_brut_communaute()
+            .set(self.actif_brut_communaute);
         store.solde_recompenses().set(self.solde_recompenses);
         store.actif_net_communaute().set(self.actif_net_communaute);
-        store.actif_net_communaute_ajuste().set(self.actif_net_communaute_ajuste);
-        store.actif_brut_succession().set(self.actif_brut_succession);
+        store
+            .actif_net_communaute_ajuste()
+            .set(self.actif_net_communaute_ajuste);
+        store
+            .actif_brut_succession()
+            .set(self.actif_brut_succession);
         store.actif_net_succession().set(self.actif_net_succession);
-        store.part_survivant_hors_succession().set(self.part_survivant_hors_succession);
+        store
+            .part_survivant_hors_succession()
+            .set(self.part_survivant_hors_succession);
     }
 }
 
@@ -405,9 +646,11 @@ pub struct ResultState {
     premier_av_survivant: BeneficiaireState,
     // Valeur AV reçue par chaque enfant au 1er décès
     premier_av_enfant: BeneficiaireState,
+    // Somme des AV reçues par tous les bénéficiaires au 1er décès
     premier_av_total: BeneficiaireState,
     // Valeur AV reçue par chaque enfant au 2ème décès
     deuxieme_av_enfant: BeneficiaireState,
+    // Somme des AV reçues par tous les bénéficiaires au 2eme décès décès
     deuxieme_av_total: BeneficiaireState,
     option_totalite_us: OptionState,
     option_1_4_pp: OptionState,
@@ -417,20 +660,30 @@ pub struct ResultState {
 impl ResultState {
     // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
     pub fn to(&self, store: Store<ResultState>) {
-        self.premier_deces_civil.to(store.premier_deces_civil().into());
-        self.premier_deces_fiscal.to(store.premier_deces_fiscal().into());
-        self.premier_av_survivant.to(store.premier_av_survivant().into());
+        self.premier_deces_civil
+            .to(store.premier_deces_civil().into());
+        self.premier_deces_fiscal
+            .to(store.premier_deces_fiscal().into());
+        self.premier_av_survivant
+            .to(store.premier_av_survivant().into());
         self.premier_av_enfant.to(store.premier_av_enfant().into());
         self.premier_av_total.to(store.premier_av_total().into());
-        self.deuxieme_av_enfant.to(store.deuxieme_av_enfant().into());
+        self.deuxieme_av_enfant
+            .to(store.deuxieme_av_enfant().into());
         self.deuxieme_av_total.to(store.deuxieme_av_total().into());
-        self.option_totalite_us.to(store.option_totalite_us().into());
+        self.option_totalite_us
+            .to(store.option_totalite_us().into());
         self.option_1_4_pp.to(store.option_1_4_pp().into());
-        self.option_1_4_pp_3_4_us.to(store.option_1_4_pp_3_4_us().into());
+        self.option_1_4_pp_3_4_us
+            .to(store.option_1_4_pp_3_4_us().into());
         self.option_qd_pp.to(store.option_qd_pp().into());
     }
     // Wrapper du calcul au niveaux des store
-    pub fn store_compute(store_input: Store<InputState>, snapshot_input: Store<InputState>, store_result: Store<ResultState>) {
+    pub fn store_compute(
+        store_input: Store<InputState>,
+        snapshot_input: Store<InputState>,
+        store_result: Store<ResultState>,
+    ) {
         // Copie figée des inputs (pour que le rapport ne soit pas modifié après génération)
         let snapshot = InputState::from(store_input);
         snapshot.to(snapshot_input);

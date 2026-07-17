@@ -1,13 +1,21 @@
 use dioxus::prelude::*;
 
+use crate::data::{
+    calcul_biens_meublants, HeritierStateStoreExt, InputState, InputStateStoreExt,
+    OptionStateStoreExt, ResultState, ResultStateStoreExt, DEFAUT_NB_ENFANTS,
+};
 use crate::report::{format_num, Rapport};
-use crate::data::{calcul_biens_meublants, DEFAUT_NB_ENFANTS, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt};
 
 // Gestion d'un fieldset:
 // - la légende peut être centrée ou alignée à gauche
 // - une partie de la légende peut être masquée quand l'écran est petit
 #[component]
-fn Fieldset(legend: &'static str, optional: &'static str, center: bool, children: Element) -> Element {
+fn Fieldset(
+    legend: &'static str,
+    optional: &'static str,
+    center: bool,
+    children: Element,
+) -> Element {
     rsx! {
         fieldset {
             class: "bg-blue-100 dark:bg-blue-600 border-t border-l border-r border-blue-300 dark:border-blue-800",
@@ -29,7 +37,13 @@ fn Fieldset(legend: &'static str, optional: &'static str, center: bool, children
 }
 
 #[component]
-fn Checkbox(id: &'static str, lab: &'static str, tooltip: &'static str, signal: WriteSignal<bool>, store: Option<Store<InputState>>) -> Element {
+fn Checkbox(
+    id: &'static str,
+    lab: &'static str,
+    tooltip: &'static str,
+    signal: WriteSignal<bool>,
+    store: Option<Store<InputState>>,
+) -> Element {
     rsx! {
         div { class: "tooltip-top tooltip",
             span { class: "tooltip-text ml-12!", {tooltip} }
@@ -59,7 +73,11 @@ enum InputType {
 }
 
 #[component]
-fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type: InputType) -> Element {
+fn Input(
+    signal: WriteSignal<i32>,
+    store: Option<Store<InputState>>,
+    input_type: InputType,
+) -> Element {
     // Désactive le champ biens meublants quand forfait mobilier est coché
     let disabled = use_memo(move || {
         if input_type == InputType::BiensMeublants {
@@ -72,52 +90,49 @@ fn Input(signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type:
     // Traitement des événements oninput et onchange. La différence entre les 2
     // est que le premier ne supprime pas une série de 0 à gauche.
     let mut manage_input_and_change = move |e: Event<FormData>, is_change: bool| {
-            if !e.valid() && !is_change {
-                e.prevent_default();
-                return;
-            }
-            // Récupère la valeur saisie
-            let new_val = e.value();
-            // Stocke la nouvelle valeur saisie sauf en mode input si le premier chiffre à gauche vaut 0
-            // pour que l'utilisateur se soit pas supris de voir disparaitre une série de 0 à gauche
-            // alors qu'il voulait juste remplacer le chiffre le plus signicatif (par exemple il voulait
-            // remplacer 30000 par 40000, en effacant le 3 et en tapant 4 à la place).
-            if !is_change && new_val.starts_with('0') {
-                return;
-            }
-            // On met la valeur par défaut à la place d'un champ vide en mode onchange
-            if new_val.is_empty() && is_change {
-                signal
-                    .set(
-                        if input_type == InputType::NbEnfants {
-                            DEFAUT_NB_ENFANTS
-                        } else {
-                            i32::default()
-                        }
-                );
+        if !e.valid() && !is_change {
+            e.prevent_default();
+            return;
+        }
+        // Récupère la valeur saisie
+        let new_val = e.value();
+        // Stocke la nouvelle valeur saisie sauf en mode input si le premier chiffre à gauche vaut 0
+        // pour que l'utilisateur se soit pas supris de voir disparaitre une série de 0 à gauche
+        // alors qu'il voulait juste remplacer le chiffre le plus signicatif (par exemple il voulait
+        // remplacer 30000 par 40000, en effacant le 3 et en tapant 4 à la place).
+        if !is_change && new_val.starts_with('0') {
+            return;
+        }
+        // On met la valeur par défaut à la place d'un champ vide en mode onchange
+        if new_val.is_empty() && is_change {
+            signal.set(if input_type == InputType::NbEnfants {
+                DEFAUT_NB_ENFANTS
             } else {
-                // Le unwrap_or remet la valeur courante si la nouvelle valeur est invalide ou négative
-                let unsigned_old_val = signal() as u32;
-                let mut unsigned_new_val : u32 = new_val.parse().unwrap_or(unsigned_old_val);
-                // Idem si le nb d'enfants vaut 0
-                if input_type == InputType::NbEnfants && unsigned_new_val == 0 {
-                    unsigned_new_val = unsigned_old_val;
-                }
-                *signal.write() = unsigned_new_val as i32;
+                i32::default()
+            });
+        } else {
+            // Le unwrap_or remet la valeur courante si la nouvelle valeur est invalide ou négative
+            let unsigned_old_val = signal() as u32;
+            let mut unsigned_new_val: u32 = new_val.parse().unwrap_or(unsigned_old_val);
+            // Idem si le nb d'enfants vaut 0
+            if input_type == InputType::NbEnfants && unsigned_new_val == 0 {
+                unsigned_new_val = unsigned_old_val;
             }
-            // Puis effectue éventuellement un traitement global inter-champs
-            if input_type == InputType::ResidencePrincipale || input_type == InputType::Placements {
-               gere_biens_meublants(store);
-            }
-        };
-        // Vérifie le champ caractère par caractère
-        let manage_input = move |e: Event<FormData>| {
-               manage_input_and_change(e, false);
-        };
-        // Vérifie le champ à la fin de la saisie
-        let manage_change = move |e: Event<FormData>| {
-            manage_input_and_change(e, true);
-        };
+            *signal.write() = unsigned_new_val as i32;
+        }
+        // Puis effectue éventuellement un traitement global inter-champs
+        if input_type == InputType::ResidencePrincipale || input_type == InputType::Placements {
+            gere_biens_meublants(store);
+        }
+    };
+    // Vérifie le champ caractère par caractère
+    let manage_input = move |e: Event<FormData>| {
+        manage_input_and_change(e, false);
+    };
+    // Vérifie le champ à la fin de la saisie
+    let manage_change = move |e: Event<FormData>| {
+        manage_input_and_change(e, true);
+    };
     rsx! {
         input {
             class: "w-17 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm",
@@ -150,7 +165,14 @@ fn Output(signal: ReadSignal<i32>) -> Element {
 }
 
 #[component]
-fn InputWithLabel(id: &'static str, lab: &'static str, tooltip: &'static str, signal: WriteSignal<i32>, store: Option<Store<InputState>>, input_type: InputType) -> Element {
+fn InputWithLabel(
+    id: &'static str,
+    lab: &'static str,
+    tooltip: &'static str,
+    signal: WriteSignal<i32>,
+    store: Option<Store<InputState>>,
+    input_type: InputType,
+) -> Element {
     rsx! {
         div { id,
             div {
@@ -183,9 +205,11 @@ fn gere_biens_meublants(store: Option<Store<InputState>>) {
             let residence_principale = *store.residence_principale().read();
             let placements = *store.placements().read();
             let dettes = *store.dettes().read();
-            store
-                .biens_meublants()
-                .set(calcul_biens_meublants(residence_principale, placements, dettes));
+            store.biens_meublants().set(calcul_biens_meublants(
+                residence_principale,
+                placements,
+                dettes,
+            ));
         }
     }
 }

@@ -19,7 +19,9 @@ fn App() -> Element {
     // Lit les cookies présents dans le browser pour intialiser les entrées
     // Reconstitue la chaine donnée par document.cookie avec un map et un join.
     let future = use_resource(move || async move {
-        let mut eval = document::eval(r#"dioxus.send((await cookieStore.getAll()).map(c => `${c.name}=${c.value}`).join("; "));"#);
+        let mut eval = document::eval(
+            r#"dioxus.send((await cookieStore.getAll()).map(c => `${c.name}=${c.value}`).join("; "));"#,
+        );
         eval.recv::<String>().await.unwrap()
     });
     match future.read_unchecked().as_ref() {
@@ -34,9 +36,9 @@ fn App() -> Element {
         // On ne les a pas encore obtenus => on affiche une page blanche.
         // Inutile de définir une page d'attente car dans les faits un refresh
         // provoque un clignotement fugitif.
-        _ => rsx!{
+        _ => rsx! {
             div {}
-        }
+        },
     }
 }
 

@@ -1,9 +1,21 @@
 use std::cmp;
 
-use crate::data::{ABATTEMENT_AV, ABATTEMENT_DROITS, BeneficiaireState, FORFAIT_FRAIS_FUNERAIRES, HeritierState, REMISE_RP_FISCALE};
-use crate::data::{InputState, OptionState, ResultState, FractionnementPropriete};
+use crate::data::{
+    BeneficiaireState, HeritierState, ABATTEMENT_AV, ABATTEMENT_DROITS, FORFAIT_FRAIS_FUNERAIRES,
+    REMISE_RP_FISCALE,
+};
+use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState};
 
-// Calcul au niveau des structures sous-jacentes (par opposition au wrapper de type store)
+// Voici le résumé des échanges sur le forum MoneyVox concernant les récompenses :
+// - AV du conjoint survivant : le survivant conserve son contrat mais il doit une récompense à la communauté (sur le plan civil uniquement)
+// - PERin du conjoint survivant : le survivant conserve son contrat sans devoir de récompense à la communauté (le contrat est un propre du survivant)
+// - AV ou PERin du défunt au bénéfice du conjoint : pas de récompenses dues (le capital devient un propre du survivant)
+// - AV du défunt au bénéfice des enfants : le défunt doit une récompense à la communauté (sauf si le survivant a proposé une dispense de récompense)
+// Nota :
+// - les récompenses gérées sont dues à la communauté et sont donc inscrites à l'actif de la communauté
+// - en parallèle elles sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
+
+// Calcul au niveau des structures sous-jacentes (par opposition aux wrappers de type store)
 // - distribution des AV aux bénéficiaires et calcul des récompenses associées
 // - liquiditation du la communauté
 // - calcul de la succession et de la part du conjoint survivant hors succession
@@ -55,13 +67,25 @@ pub fn compute(input: InputState, result: &mut ResultState) {
     result.premier_av_survivant.net = av;
 
     // Répartition des totaux des AV transmises aux bénéficiaires
-    repartition_beneficiaire_total(&mut result.premier_av_total, &result.premier_av_enfant, input.nb_enfants, Some(&result.premier_av_survivant));
-    repartition_beneficiaire_total(&mut result.deuxieme_av_total, &result.deuxieme_av_enfant, input.nb_enfants, None);
+    repartition_beneficiaire_total(
+        &mut result.premier_av_total,
+        &result.premier_av_enfant,
+        input.nb_enfants,
+        Some(&result.premier_av_survivant),
+    );
+    repartition_beneficiaire_total(
+        &mut result.deuxieme_av_total,
+        &result.deuxieme_av_enfant,
+        input.nb_enfants,
+        None,
+    );
 
     // Actif brut de communauté : RP + placements hors AV/PER + biens meublants si le forfait mobilier n'est pas utilisé.
     // (au civil et au fiscal, avec un remise de 20% sur la RP au fiscal)
-    result.premier_deces_civil.actif_brut_communaute = input.residence_principale + input.placements;
-    result.premier_deces_fiscal.actif_brut_communaute = (input.residence_principale as f64 * (1.0 - REMISE_RP_FISCALE)) as i32 + input.placements;
+    result.premier_deces_civil.actif_brut_communaute =
+        input.residence_principale + input.placements;
+    result.premier_deces_fiscal.actif_brut_communaute =
+        (input.residence_principale as f64 * (1.0 - REMISE_RP_FISCALE)) as i32 + input.placements;
     if !input.forfait_mobilier {
         result.premier_deces_civil.actif_brut_communaute += input.biens_meublants;
         result.premier_deces_fiscal.actif_brut_communaute += input.biens_meublants;
@@ -69,56 +93,88 @@ pub fn compute(input: InputState, result: &mut ResultState) {
 
     // Actif brut de communauté : actif net de communauté - dettes
     // (au civil et au fiscal)
-    result.premier_deces_civil.actif_net_communaute = result.premier_deces_civil.actif_brut_communaute - input.dettes;
-    result.premier_deces_fiscal.actif_net_communaute = result.premier_deces_fiscal.actif_brut_communaute - input.dettes;
+    result.premier_deces_civil.actif_net_communaute =
+        result.premier_deces_civil.actif_brut_communaute - input.dettes;
+    result.premier_deces_fiscal.actif_net_communaute =
+        result.premier_deces_fiscal.actif_brut_communaute - input.dettes;
 
     // Soldes de récompenses : récompenses dues à la communauté (on ne gère pas de récompenses dues par la communauté)
     // (au civil et au fiscal)
-    result.premier_deces_civil.solde_recompenses = result.premier_deces_civil.recompense_due_par_le_survivant
-        + result.premier_deces_civil.recompense_due_par_le_defunt;
-    result.premier_deces_fiscal.solde_recompenses = result.premier_deces_fiscal.recompense_due_par_le_survivant
-        + result.premier_deces_fiscal.recompense_due_par_le_defunt;
+    result.premier_deces_civil.solde_recompenses =
+        result.premier_deces_civil.recompense_due_par_le_survivant
+            + result.premier_deces_civil.recompense_due_par_le_defunt;
+    result.premier_deces_fiscal.solde_recompenses =
+        result.premier_deces_fiscal.recompense_due_par_le_survivant
+            + result.premier_deces_fiscal.recompense_due_par_le_defunt;
 
     // Actif net de communauté ajusté : actif net de communauté + solde de récompenses.
     // (au civil et au fiscal)
-    result.premier_deces_civil.actif_net_communaute_ajuste = result.premier_deces_civil.actif_net_communaute
-        + result.premier_deces_civil.solde_recompenses;
-    result.premier_deces_fiscal.actif_net_communaute_ajuste = result.premier_deces_fiscal.actif_net_communaute
-        + result.premier_deces_fiscal.solde_recompenses;
+    result.premier_deces_civil.actif_net_communaute_ajuste =
+        result.premier_deces_civil.actif_net_communaute
+            + result.premier_deces_civil.solde_recompenses;
+    result.premier_deces_fiscal.actif_net_communaute_ajuste =
+        result.premier_deces_fiscal.actif_net_communaute
+            + result.premier_deces_fiscal.solde_recompenses;
 
     // Actif brut successoral : actif net de communauté ajusté / 2 + biens propres du défunt (récompense due à la communauté à son passif)
     // (au civil et au fiscal)
-    result.premier_deces_civil.actif_brut_succession =  result.premier_deces_civil.actif_net_communaute_ajuste / 2
-        - result.premier_deces_civil.recompense_due_par_le_defunt;
-    result.premier_deces_fiscal.actif_brut_succession =  result.premier_deces_fiscal.actif_net_communaute_ajuste / 2
-        - result.premier_deces_fiscal.recompense_due_par_le_defunt;
+    result.premier_deces_civil.actif_brut_succession =
+        result.premier_deces_civil.actif_net_communaute_ajuste / 2
+            - result.premier_deces_civil.recompense_due_par_le_defunt;
+    result.premier_deces_fiscal.actif_brut_succession =
+        result.premier_deces_fiscal.actif_net_communaute_ajuste / 2
+            - result.premier_deces_fiscal.recompense_due_par_le_defunt;
 
     // Actif net successoral (= succession) : Actif brut successoral + biens meublants - frais funéraires
     // - au civil : frais funéraires réels, pas de biens meublants (soit déjà compté dans l'actif de communauté, soit répartition amiable)
     // - au fiscal : forfait de 1500 € pour les frais funéraires, biens meublants de 5% de l'actif brut de communauté si forfait mobilier utilisé
-    result.premier_deces_civil.actif_net_succession = result.premier_deces_civil.actif_brut_succession - input.frais_funeraires;
-    result.premier_deces_fiscal.actif_net_succession = result.premier_deces_fiscal.actif_brut_succession - FORFAIT_FRAIS_FUNERAIRES;
+    result.premier_deces_civil.actif_net_succession =
+        result.premier_deces_civil.actif_brut_succession - input.frais_funeraires;
+    result.premier_deces_fiscal.actif_net_succession =
+        result.premier_deces_fiscal.actif_brut_succession - FORFAIT_FRAIS_FUNERAIRES;
     if input.forfait_mobilier {
         // input.biens_meublants contient le forfait calculé dans l'UI
         result.premier_deces_fiscal.actif_net_succession += input.biens_meublants;
     }
 
     // Un actif net fiscal négatif est remis à 0 (pour éviter des impôts négatifs)
-    result.premier_deces_fiscal.actif_net_succession = cmp::max(0, result.premier_deces_fiscal.actif_net_succession);
+    result.premier_deces_fiscal.actif_net_succession =
+        cmp::max(0, result.premier_deces_fiscal.actif_net_succession);
 
     // Part du survivant hors succession : actif net de communauté ajusté / 2 + biens propres du survivant (récompense due à la communauté à son passif)
     // (au civil uniquement)
-    result.premier_deces_civil.part_survivant_hors_succession = result.premier_deces_civil.actif_net_communaute_ajuste / 2
-        - result.premier_deces_civil.recompense_due_par_le_survivant;
+    result.premier_deces_civil.part_survivant_hors_succession =
+        result.premier_deces_civil.actif_net_communaute_ajuste / 2
+            - result.premier_deces_civil.recompense_due_par_le_survivant;
 
     // On fait une copie de cette structure car la fonction calcul_option va en modifier un sous-ensemble
-    // mais a besoin de lire le reste et elle ne peut pas l'emprunter à la fois en lecture et en écriture.
+    // mais elle a besoin de lire le reste et la structure ne peut pas être empruntée à la fois en lecture et en écriture.
     let photo_result = result.clone();
     // Calcul des 4 options possibles que peut choisir le survivant.
-    calcul_option(&mut result.option_totalite_us, FractionnementPropriete::new_totalite_us(), &input, &photo_result);
-    calcul_option(&mut result.option_1_4_pp, FractionnementPropriete::new_1_4_pp(), &input, &photo_result);
-    calcul_option(&mut result.option_1_4_pp_3_4_us, FractionnementPropriete::new_1_4_pp_3_4_us(), &input, &photo_result);
-    calcul_option(&mut result.option_qd_pp, FractionnementPropriete::new_qd_pp(input.nb_enfants), &input, &photo_result);
+    calcul_option(
+        &mut result.option_totalite_us,
+        FractionnementPropriete::new_totalite_us(),
+        &input,
+        &photo_result,
+    );
+    calcul_option(
+        &mut result.option_1_4_pp,
+        FractionnementPropriete::new_1_4_pp(),
+        &input,
+        &photo_result,
+    );
+    calcul_option(
+        &mut result.option_1_4_pp_3_4_us,
+        FractionnementPropriete::new_1_4_pp_3_4_us(),
+        &input,
+        &photo_result,
+    );
+    calcul_option(
+        &mut result.option_qd_pp,
+        FractionnementPropriete::new_qd_pp(input.nb_enfants),
+        &input,
+        &photo_result,
+    );
 
     // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
     result.option_totalite_us.cumul(input.nb_enfants);
@@ -129,11 +185,7 @@ pub fn compute(input: InputState, result: &mut ResultState) {
 
 // Calcul du coefficient définissant la quote part de chaque héritier dans les émoluments de déclaration de succession
 // avec un mécanisme de protection contre les divisions par 0 et les coefficients négatifs
-fn coef_declaration_succession(
-    ignorer: bool,
-    assiette: i32,
-    part_civile_totale: i32,
-) -> f64 {
+fn coef_declaration_succession(ignorer: bool, assiette: i32, part_civile_totale: i32) -> f64 {
     if ignorer || assiette <= 0 || part_civile_totale <= 0 {
         0.0
     } else {
@@ -145,8 +197,12 @@ fn coef_declaration_succession(
 
 // Calcul d'une option
 // TODO: faire les calculs dans le domaine f64 et à la fin seulement stocker les résultats dans des i32
-fn calcul_option(option: &mut OptionState, fractionnement: FractionnementPropriete, input: &InputState, result: &ResultState) {
-
+fn calcul_option(
+    option: &mut OptionState,
+    fractionnement: FractionnementPropriete,
+    input: &InputState,
+    result: &ResultState,
+) {
     // Calcul du 1er décès
     // -------------------
 
@@ -155,32 +211,49 @@ fn calcul_option(option: &mut OptionState, fractionnement: FractionnementProprie
 
     // Fractionnement de l'actif net civil en US/NP/PP pour le survivant et les enfants
     // Deux combinaisons ne sont pas possibles : le survivant ne reçoit pas de NP et les enfants ne reçoivent pas d'US
-    let age_survivant = if input.ordre_deces { input.age_conjoint } else { input.age_vous };
+    let age_survivant = if input.ordre_deces {
+        input.age_conjoint
+    } else {
+        input.age_vous
+    };
     let (us, np) = bareme_usufruit(age_survivant);
     let fractionnement_np_enfants = fractionnement.us_survivant;
     let fractionnement_pp_enfants = 1.0 - fractionnement.pp_survivant - fractionnement.us_survivant;
-    option.premier_survivant.heritage_pp = (fractionnement.pp_survivant * result.premier_deces_civil.actif_net_succession as f64) as i32;
-    option.premier_enfant.heritage_pp = (fractionnement_pp_enfants * result.premier_deces_civil.actif_net_succession as f64 / input.nb_enfants as f64) as i32;
-    option.premier_enfant.heritage_np = (fractionnement_np_enfants * np * result.premier_deces_civil.actif_net_succession as f64 / input.nb_enfants as f64) as i32;
-    option.premier_survivant.heritage_us = (fractionnement.us_survivant * us * result.premier_deces_civil.actif_net_succession as f64) as i32;
+    option.premier_survivant.heritage_pp = (fractionnement.pp_survivant
+        * result.premier_deces_civil.actif_net_succession as f64)
+        as i32;
+    option.premier_enfant.heritage_pp = (fractionnement_pp_enfants
+        * result.premier_deces_civil.actif_net_succession as f64
+        / input.nb_enfants as f64) as i32;
+    option.premier_enfant.heritage_np =
+        (fractionnement_np_enfants * np * result.premier_deces_civil.actif_net_succession as f64
+            / input.nb_enfants as f64) as i32;
+    option.premier_survivant.heritage_us =
+        (fractionnement.us_survivant * us * result.premier_deces_civil.actif_net_succession as f64)
+            as i32;
 
     // Totaux US/NP/PP
-    option.premier_total.heritage_pp = option.premier_survivant.heritage_pp + input.nb_enfants * option.premier_enfant.heritage_pp;
+    option.premier_total.heritage_pp =
+        option.premier_survivant.heritage_pp + input.nb_enfants * option.premier_enfant.heritage_pp;
     option.premier_total.heritage_np = input.nb_enfants * option.premier_enfant.heritage_np;
     option.premier_total.heritage_us = option.premier_survivant.heritage_us;
 
     // Part civile du survivant et des enfants
-    option.premier_survivant.part_civile = option.premier_survivant.heritage_pp + option.premier_survivant.heritage_us;
-    option.premier_enfant.part_civile = option.premier_enfant.heritage_pp + option.premier_enfant.heritage_np;
+    option.premier_survivant.part_civile =
+        option.premier_survivant.heritage_pp + option.premier_survivant.heritage_us;
+    option.premier_enfant.part_civile =
+        option.premier_enfant.heritage_pp + option.premier_enfant.heritage_np;
 
     // Coefficient permettant de calculer les part fiscales de chacun (survivant et enfants) à partir des parts civiles.
     // Il est mis à 0 si l'actif net civil est négatif ou nul (pour éviter des impôts négatifs ou une division par 0)
     let coef = if result.premier_deces_civil.actif_net_succession > 0 {
-        result.premier_deces_fiscal.actif_net_succession as f64 / result.premier_deces_civil.actif_net_succession as f64
+        result.premier_deces_fiscal.actif_net_succession as f64
+            / result.premier_deces_civil.actif_net_succession as f64
     } else {
         0.0
     };
-    option.premier_survivant.part_fiscale = (coef * option.premier_survivant.part_civile as f64) as i32;
+    option.premier_survivant.part_fiscale =
+        (coef * option.premier_survivant.part_civile as f64) as i32;
     option.premier_enfant.part_fiscale = (coef * option.premier_enfant.part_civile as f64) as i32;
 
     // Calcul des droits et de l'héritage net des enfants
@@ -194,27 +267,50 @@ fn calcul_option(option: &mut OptionState, fractionnement: FractionnementProprie
         cmp::max(0, result.premier_deces_civil.actif_brut_succession),
         option.premier_total.part_civile,
     );
-    calcul_heritier(&mut option.premier_enfant, Some(input.donations_partages/2/input.nb_enfants), result.premier_av_enfant.net,
-        None, assiette_partage_total, coef);
+    calcul_heritier(
+        &mut option.premier_enfant,
+        Some(input.donations_partages / 2 / input.nb_enfants),
+        result.premier_av_enfant.net,
+        None,
+        assiette_partage_total,
+        coef,
+    );
 
     // Calcul de l'héritage du survivant
-    calcul_heritier(&mut option.premier_survivant, None, result.premier_av_survivant.net,
-        None, assiette_partage_total, coef);
+    calcul_heritier(
+        &mut option.premier_survivant,
+        None,
+        result.premier_av_survivant.net,
+        None,
+        assiette_partage_total,
+        coef,
+    );
 
     // Répartition des totaux des héritages
-    repartition_heritier_total(&mut option.premier_total, &option.premier_enfant, input.nb_enfants, Some(&option.premier_survivant));
-    option.premier_etat = option.premier_total.droits_succession + option.premier_total.droits_partage + result.premier_av_total.prelevement;
-    option.premier_notaire = option.premier_total.emoluments_partage + option.premier_total.emoluments_declaration_succession;
+    repartition_heritier_total(
+        &mut option.premier_total,
+        &option.premier_enfant,
+        input.nb_enfants,
+        Some(&option.premier_survivant),
+    );
+    option.premier_etat = option.premier_total.droits_succession
+        + option.premier_total.droits_partage
+        + result.premier_av_total.prelevement;
+    option.premier_notaire = option.premier_total.emoluments_partage
+        + option.premier_total.emoluments_declaration_succession;
 
     // Calcul du 2eme décès
     // --------------------
 
     // Extinction d'usufruit (US + NP enfin reçus par les enfants et déjà taxés au 1er décès)
-    option.deuxieme_total.extinction_us = option.premier_survivant.heritage_us + input.nb_enfants * option.premier_enfant.heritage_np;
+    option.deuxieme_total.extinction_us =
+        option.premier_survivant.heritage_us + input.nb_enfants * option.premier_enfant.heritage_np;
 
     // Part civile:
     // La part du survivant hors succession + sa part en PP dans la succession + le capital de l'AV qu'il avait reçu du conjoint
-    option.deuxieme_total.part_civile = result.premier_deces_civil.part_survivant_hors_succession + option.premier_survivant.heritage_pp + result.premier_av_survivant.net;
+    option.deuxieme_total.part_civile = result.premier_deces_civil.part_survivant_hors_succession
+        + option.premier_survivant.heritage_pp
+        + result.premier_av_survivant.net;
 
     // Part fiscale:
     // Un actif net fiscal négatif est remis à 0 (pour éviter des impôts négatifs)
@@ -227,7 +323,10 @@ fn calcul_option(option: &mut OptionState, fractionnement: FractionnementProprie
 
     // Calcul des droits et de l'héritage net des enfants
     let assiette_partage_total = if input.nb_enfants > 1 && !input.ignorer_couts_partage {
-        cmp::max(0, option.deuxieme_total.extinction_us + option.deuxieme_total.part_civile)
+        cmp::max(
+            0,
+            option.deuxieme_total.extinction_us + option.deuxieme_total.part_civile,
+        )
     } else {
         0
     };
@@ -237,13 +336,27 @@ fn calcul_option(option: &mut OptionState, fractionnement: FractionnementProprie
         cmp::max(0, option.deuxieme_total.part_civile),
         option.deuxieme_total.part_civile,
     );
-    calcul_heritier(&mut option.deuxieme_enfant, Some(input.donations_partages/2/input.nb_enfants), result.deuxieme_av_enfant.net,
-        Some(input.nb_enfants), assiette_partage_total, coef);
+    calcul_heritier(
+        &mut option.deuxieme_enfant,
+        Some(input.donations_partages / 2 / input.nb_enfants),
+        result.deuxieme_av_enfant.net,
+        Some(input.nb_enfants),
+        assiette_partage_total,
+        coef,
+    );
 
     // Répartition des totaux des héritages
-    repartition_heritier_total(&mut option.deuxieme_total, &option.deuxieme_enfant, input.nb_enfants, None);
-    option.deuxieme_etat = option.deuxieme_total.droits_succession + option.deuxieme_total.droits_partage + result.deuxieme_av_total.prelevement;
-    option.deuxieme_notaire = option.deuxieme_total.emoluments_partage + option.deuxieme_total.emoluments_declaration_succession;
+    repartition_heritier_total(
+        &mut option.deuxieme_total,
+        &option.deuxieme_enfant,
+        input.nb_enfants,
+        None,
+    );
+    option.deuxieme_etat = option.deuxieme_total.droits_succession
+        + option.deuxieme_total.droits_partage
+        + result.deuxieme_av_total.prelevement;
+    option.deuxieme_notaire = option.deuxieme_total.emoluments_partage
+        + option.deuxieme_total.emoluments_declaration_succession;
 }
 
 // Barème fiscal de l'usufruit et de la nue-propriété (cf. https://www.service-public.gouv.fr/particuliers/vosdroits/F934)
@@ -266,27 +379,39 @@ fn bareme_usufruit(age_usufrutier: i32) -> (f64, f64) {
 
 // Droits de succession en ligne direct sur la part taxable après abattement de 100 000 €
 fn droits_en_ligne_direct(part: f64) -> f64 {
-    let res = if part<=8_072.0 {
-            part*0.05
-        } else {
-            8_072.0*0.05 + if part<=12_109.0 {
-                (part-8_072.0)*0.10
+    let res = if part <= 8_072.0 {
+        part * 0.05
+    } else {
+        8_072.0 * 0.05
+            + if part <= 12_109.0 {
+                (part - 8_072.0) * 0.10
             } else {
-                (12_109.0-8_072.0)*0.10 + if part<=15_932.0 {
-                    (part-12_109.0)*0.15
-                } else {
-                    (15_932.0-12_109.0)*0.15 + if part<=552_324.0 {
-                        (part-15_932.0)*0.20
+                (12_109.0 - 8_072.0) * 0.10
+                    + if part <= 15_932.0 {
+                        (part - 12_109.0) * 0.15
                     } else {
-                        (552_324.0-15_932.0)*0.20 + if part<=902_838.0 {
-                            (part-552_324.0)*0.30
-                        } else {
-                            (902_838.0-552_324.0)*0.30 + if part<=1_805_677.0 {
-                                (part-902_838.0)*0.40
+                        (15_932.0 - 12_109.0) * 0.15
+                            + if part <= 552_324.0 {
+                                (part - 15_932.0) * 0.20
                             } else {
-                                (1_805_677.0-902_838.0)*0.40+(part-1_805_677.0)*0.45 } } } } } };
+                                (552_324.0 - 15_932.0) * 0.20
+                                    + if part <= 902_838.0 {
+                                        (part - 552_324.0) * 0.30
+                                    } else {
+                                        (902_838.0 - 552_324.0) * 0.30
+                                            + if part <= 1_805_677.0 {
+                                                (part - 902_838.0) * 0.40
+                                            } else {
+                                                (1_805_677.0 - 902_838.0) * 0.40
+                                                    + (part - 1_805_677.0) * 0.45
+                                            }
+                                    }
+                            }
+                    }
+            }
+    };
     // Arrondi au centime
-    (res*100.0).round()/100.0
+    (res * 100.0).round() / 100.0
 }
 
 // Calcul de l'héritage net des enfants ou du survivant, soit au 1er décès, soit au second décès.
@@ -298,15 +423,27 @@ fn droits_en_ligne_direct(part: f64) -> f64 {
 // - pour la déclaration de succession ce n'est pas l'assiette qui est passée en paramètre mais le coefficient multiplicateur.
 // Nota: Les parts civiles et fiscales ainsi que les parties PP, NP et US ont déjà été calculées en amont
 // en fonction de l'option choisie par le conjoint survivant.
-fn calcul_heritier(heritier: &mut HeritierState, donations_partages: Option<i32>, av_net: i32,
-    nb_enfants: Option<i32>, assiette_partage_globale: i32, coef_declaration_succession: f64) {
+fn calcul_heritier(
+    heritier: &mut HeritierState,
+    donations_partages: Option<i32>,
+    av_net: i32,
+    nb_enfants: Option<i32>,
+    assiette_partage_globale: i32,
+    coef_declaration_succession: f64,
+) {
     // Droits de succession, seuls les enfants les payent.
     // Pour le survivant le champ droits_succession n'est pas rempli et garde donc sa valeur par défaut 0.
     let mut enfant = false;
     if let Some(donations_partages) = donations_partages {
         enfant = true;
         // Les enfants sont susceptibles de payer des droits de succession en fonction de l'abattement et des donations reçues il y a moins de quinze ans.
-        heritier.abattement = cmp::max(0, cmp::min(heritier.part_fiscale, ABATTEMENT_DROITS - donations_partages));
+        heritier.abattement = cmp::max(
+            0,
+            cmp::min(
+                heritier.part_fiscale,
+                ABATTEMENT_DROITS - donations_partages,
+            ),
+        );
         heritier.taxable = cmp::max(0, heritier.part_fiscale - heritier.abattement);
         heritier.droits_succession = droits_en_ligne_direct(heritier.taxable as f64) as i32;
     }
@@ -334,14 +471,21 @@ fn calcul_heritier(heritier: &mut HeritierState, donations_partages: Option<i32>
         // Droits de partage proportionnels de 2.5%
         heritier.droits_partage = (0.025 * assiette_partage_individuelle) as i32;
         // Emoluments de partage non-proportionnels. Il faut les calculer globalement et les répartir au prorata de l'assiette individuelle.
-        heritier.emoluments_partage = (partage_succession(assiette_partage_globale as f64) * assiette_partage_individuelle / assiette_partage_globale as f64) as i32;
+        heritier.emoluments_partage = (partage_succession(assiette_partage_globale as f64)
+            * assiette_partage_individuelle
+            / assiette_partage_globale as f64) as i32;
     }
 
     // Quote part de l'héritier dans les émoluments de déclaration de succession
-    heritier.emoluments_declaration_succession = (cmp::max(0, heritier.part_civile) as f64 * coef_declaration_succession) as i32;
+    heritier.emoluments_declaration_succession =
+        (cmp::max(0, heritier.part_civile) as f64 * coef_declaration_succession) as i32;
 
     // Calcul de l'héritage net après impôts et frais notariés modélisés
-    heritier.heritage_net = heritier.part_civile - heritier.droits_succession - heritier.droits_partage - heritier.emoluments_partage - heritier.emoluments_declaration_succession;
+    heritier.heritage_net = heritier.part_civile
+        - heritier.droits_succession
+        - heritier.droits_partage
+        - heritier.emoluments_partage
+        - heritier.emoluments_declaration_succession;
 
     // Flux financier réel: il faut soustraire la nue-propriété et l'usufruit qui sont pour l'instant virtuels.
     // Le flux ne sera matérialisé qu'au 2eme décès lors de l'extinction de l'usufruit.
@@ -362,7 +506,12 @@ fn calcul_heritier(heritier: &mut HeritierState, donations_partages: Option<i32>
 }
 
 // Répartition des totaux des héritages
-fn repartition_heritier_total(total: &mut HeritierState, enfant: &HeritierState, nb_enfants: i32, survivant: Option<&HeritierState>) {
+fn repartition_heritier_total(
+    total: &mut HeritierState,
+    enfant: &HeritierState,
+    nb_enfants: i32,
+    survivant: Option<&HeritierState>,
+) {
     total.abattement = enfant.abattement * nb_enfants;
     total.taxable = enfant.taxable * nb_enfants;
     total.droits_succession = enfant.droits_succession * nb_enfants;
@@ -388,13 +537,13 @@ fn repartition_heritier_total(total: &mut HeritierState, enfant: &HeritierState,
 // Prélèvements sur une assurance-vie au dela de l'abattement de 152 500 €
 // (cf. https://www.impots.gouv.fr/international-particulier/questions/je-suis-beneficiaire-dune-assurance-vie-comment-sont-imposees)
 fn prelevements_assurance_vie(part: f64) -> f64 {
-    let res = if part<=700_000.0 {
-        part*0.2
+    let res = if part <= 700_000.0 {
+        part * 0.2
     } else {
-        700_000.0*0.2+(part-700_000.0)*0.3125
+        700_000.0 * 0.2 + (part - 700_000.0) * 0.3125
     };
     // Arrondi au centime
-    (res*100.0).round()/100.0
+    (res * 100.0).round() / 100.0
 }
 
 // Calcul des capitaux décès nets pour une AV reçu par un enfant bénéficiaire
@@ -407,65 +556,74 @@ fn calcul_beneficiaire(beneficiaire: &mut BeneficiaireState, brut: i32) {
 }
 
 // Répartition totale des AV transmises aux bénéficiaires
-fn repartition_beneficiaire_total(total: &mut BeneficiaireState, enfant: &BeneficiaireState, nb_enfants: i32, survivant: Option<&BeneficiaireState>) {
+fn repartition_beneficiaire_total(
+    total: &mut BeneficiaireState,
+    enfant: &BeneficiaireState,
+    nb_enfants: i32,
+    survivant: Option<&BeneficiaireState>,
+) {
     total.brut = enfant.brut * nb_enfants;
     total.abattement = enfant.abattement * nb_enfants;
     total.taxable = enfant.taxable * nb_enfants;
     total.prelevement = enfant.prelevement * nb_enfants;
     total.net = enfant.net * nb_enfants;
     if let Some(survivant) = survivant {
-         total.brut += survivant.brut;
-         total.abattement += survivant.abattement;
-         total.taxable += survivant.taxable;
-         total.prelevement += survivant.prelevement;
-         total.net += survivant.net;
+        total.brut += survivant.brut;
+        total.abattement += survivant.abattement;
+        total.taxable += survivant.taxable;
+        total.prelevement += survivant.prelevement;
+        total.net += survivant.net;
     }
 }
 
 // Emoluments du notaire (cf. https://www.service-public.gouv.fr/particuliers/vosdroits/F795
 // et https://blog.qoridor.fr/article/emoluments-notaire-succession-bareme-2026)
 fn partage_succession(part: f64) -> f64 {
-    let res = if part<=6_500.0 {
-        4.837*part
+    let res = if part <= 6_500.0 {
+        4.837 * part
     } else {
-        4.837*6_500.0 + if part<=17_000.0 {
-            1.995*(part-6_500.0)
-        } else {
-            1.995*(17_000.0-6_500.0) + if part<=60_000.0 {
-                1.33*(part-17_000.0)
+        4.837 * 6_500.0
+            + if part <= 17_000.0 {
+                1.995 * (part - 6_500.0)
             } else {
-                1.33*(60_000.0-17_000.0)+0.998*(part-60_000.0)
+                1.995 * (17_000.0 - 6_500.0)
+                    + if part <= 60_000.0 {
+                        1.33 * (part - 17_000.0)
+                    } else {
+                        1.33 * (60_000.0 - 17_000.0) + 0.998 * (part - 60_000.0)
+                    }
             }
-        }
     };
     // Division par 100 car les coefficients sont des pourcentages
-    let res = res/100.0;
+    let res = res / 100.0;
     // Ajout de la TVA à 20%
     let res = 1.2 * res;
     // Arrondi au centime
-    (res*100.0).round()/100.0
+    (res * 100.0).round() / 100.0
 }
 
 fn declaration_succession(part: f64) -> f64 {
-    let res = if part<=6_500.0 {
-        1.548*part
+    let res = if part <= 6_500.0 {
+        1.548 * part
     } else {
-        1.548*6_500.0 + if part<=17_000.0 {
-            0.851*(part-6_500.0)
-        } else {
-            0.851*(17_000.0-6_500.0) + if part<=30_000.0 {
-                0.58*(part-17_000.0)
+        1.548 * 6_500.0
+            + if part <= 17_000.0 {
+                0.851 * (part - 6_500.0)
             } else {
-                0.58*(30_000.0-17_000.0)+0.426*(part-30_000.0)
+                0.851 * (17_000.0 - 6_500.0)
+                    + if part <= 30_000.0 {
+                        0.58 * (part - 17_000.0)
+                    } else {
+                        0.58 * (30_000.0 - 17_000.0) + 0.426 * (part - 30_000.0)
+                    }
             }
-        }
     };
     // Division par 100 car les coefficients sont des pourcentages
-    let res = res/100.0;
+    let res = res / 100.0;
     // Ajout de la TVA à 20%
     let res = 1.2 * res;
     // Arrondi au centime
-    (res*100.0).round()/100.0
+    (res * 100.0).round() / 100.0
 }
 
 #[test]
@@ -478,9 +636,9 @@ fn test_bareme_usufruit() {
 
 #[test]
 fn test_fractionnement() {
-    for t in [(1,2),(2,3),(3,4),(4,4)] {
+    for t in [(1, 2), (2, 3), (3, 4), (4, 4)] {
         let fractionnement = FractionnementPropriete::new_qd_pp(t.0);
-        assert_eq!(fractionnement.pp_survivant, 1.0/t.1 as f64);
+        assert_eq!(fractionnement.pp_survivant, 1.0 / t.1 as f64);
         assert_eq!(fractionnement.us_survivant, 0.0);
     }
 }
@@ -508,7 +666,7 @@ fn test_droits_en_ligne_direct() {
 }
 
 #[test]
-fn test_prelevements_assurance_vie () {
+fn test_prelevements_assurance_vie() {
     assert_eq!(to_cents(prelevements_assurance_vie(47_500.0)), 9_500_00);
     assert_eq!(to_cents(prelevements_assurance_vie(700_000.0)), 140_000_00);
     assert_eq!(to_cents(prelevements_assurance_vie(747_500.0)), 154_843_75);

@@ -1,6 +1,10 @@
 use dioxus::prelude::*;
 
-use crate::data::{BeneficiaireState, BeneficiaireStateStoreExt, HeritierStateStoreExt, InputState, InputStateStoreExt, OptionState, OptionStateStoreExt, PremierDecesStoreExt, ResultState, ResultStateStoreExt};
+use crate::data::{
+    BeneficiaireState, BeneficiaireStateStoreExt, HeritierStateStoreExt, InputState,
+    InputStateStoreExt, OptionState, OptionStateStoreExt, PremierDecesStoreExt, ResultState,
+    ResultStateStoreExt,
+};
 
 // Formate un nombre avec des blancs comme séparateurs de milliers
 pub fn format_num(val: ReadSignal<i32>) -> String {
@@ -11,13 +15,13 @@ pub fn format_num(val: ReadSignal<i32>) -> String {
         .map(std::str::from_utf8)
         .collect::<Result<Vec<&str>, _>>()
         .unwrap()
-        .join(" ")  // séparateur
+        .join(" ") // séparateur
 }
 
 // Formate un nombre en lui ajoutant le symbol € et des blancs comme séparateurs de milliers
 // et inclut le résultat dans un élement li
 #[component]
-fn Euros (val: ReadSignal<i32>, class: Option<&'static str>) -> Element {
+fn Euros(val: ReadSignal<i32>, class: Option<&'static str>) -> Element {
     let num = format_num(val);
     let class = class.unwrap_or_default();
     rsx! {
@@ -31,7 +35,7 @@ fn Euros (val: ReadSignal<i32>, class: Option<&'static str>) -> Element {
 // pour aligner les chiffres avec ceux des valeurs en euros, mais en fait le résultat est moyen.
 // Pour réinstituer cette fonction il faut décommenter le span en commentaire.
 #[component]
-fn Nb (num: ReadSignal<i32>) -> Element {
+fn Nb(num: ReadSignal<i32>) -> Element {
     rsx! {
         li { class: "text-right",
             span {
@@ -62,7 +66,12 @@ fn HilightCredit(children: Element) -> Element {
 // (enfants, éventuellement survivant et total)
 // TODO: Trouver un moyen d'utiliser une Option<Store<BeneficiaireState>> pour le survivant
 #[component]
-fn AssuranceVie(enfant: Store<BeneficiaireState>, survivant: Store<BeneficiaireState>, affiche_survivant: bool, total: Store<BeneficiaireState>) -> Element {
+fn AssuranceVie(
+    enfant: Store<BeneficiaireState>,
+    survivant: Store<BeneficiaireState>,
+    affiche_survivant: bool,
+    total: Store<BeneficiaireState>,
+) -> Element {
     rsx! {
         div {
             div { class: "flex flex-row gap-6",
@@ -326,7 +335,11 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
 }
 
 #[component]
-pub fn Rapport(snapshot: Store<InputState>, result: Store<ResultState>, show_report: ReadSignal<bool>) -> Element {
+pub fn Rapport(
+    snapshot: Store<InputState>,
+    result: Store<ResultState>,
+    show_report: ReadSignal<bool>,
+) -> Element {
     rsx! {
         details {
             class: "text-gray-900 dark:text-white",
