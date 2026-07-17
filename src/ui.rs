@@ -425,6 +425,13 @@ pub fn MainPart(cookies: String) -> Element {
                                     ResultState::store_compute(input, snapshot, result);
                                     // Affiche le rapport
                                     show_report.set(true);
+                                    // Commande javascript sauvegardant les entrées dans des cookies
+                                    let js = InputState::to_cookies(input);
+                                    // Execution de cette commande javascript
+                                    spawn(async move {
+                                        let eval = document::eval(&js);
+                                        let _ = eval.await;
+                                    });
                                     // Evite le rechargement de la page provoqué par la forme
                                     event.prevent_default();
                                 },

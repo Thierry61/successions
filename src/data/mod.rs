@@ -9,17 +9,6 @@ pub const DEFAUT_NB_ENFANTS: i32 = 2;
 pub const ABATTEMENT_AV: i32 = 152_500;
 pub const ABATTEMENT_DROITS: i32 = 100_000;
 
-// Execute une commande javascript
-fn execute_js(js: String) {
-    use_future(move || {
-        let js = js.clone();
-        async move {
-            let eval = document::eval(&js);
-            let _ = eval.await;
-        }
-    });
-}
-
 // Crée un cookie ou le détruit si la valeur est la valeur par défaut de l'entrée
 // (plus exactement ajoute dans la variable js l'instruction javascript effectuant cette action)
 fn set_cookie(js: &mut String, name: &'static str, val: i32, default_val: i32) {
@@ -273,8 +262,8 @@ impl InputState {
             .per_conjoint_conjoint()
             .set(self.per_conjoint_conjoint);
     }
-    // Idem pour cette fonction codée en dur pour sauvergarder les entrées dans des cookies
-    pub fn to_cookies(store: Store<InputState>) {
+    // Idem pour cette fonction codée en dur générant une chaine permettant de sauvergarder les entrées dans des cookies
+    pub fn to_cookies(store: Store<InputState>) -> String {
         let def = InputState::new();
         let mut js = "await Promise.all([".to_string();
         set_cookie(
@@ -408,7 +397,7 @@ impl InputState {
             def.per_conjoint_conjoint,
         );
         js.push_str("]);");
-        execute_js(js);
+        js
     }
 }
 
@@ -687,9 +676,6 @@ impl ResultState {
         // Copie figée des inputs (pour que le rapport ne soit pas modifié après génération)
         let snapshot = InputState::from(store_input);
         snapshot.to(snapshot_input);
-
-        // Sauvegarde des entrées dans des cookies
-        InputState::to_cookies(store_input);
 
         // Initialisation des résultats à 0
         let mut result = ResultState::default();
