@@ -126,12 +126,18 @@ pub fn compute(input: InputState, result: &mut ResultState) {
             - result.premier_deces_fiscal.recompense_due_par_le_defunt;
 
     // Actif net successoral (= succession) : Actif brut successoral + biens meublants - frais funéraires
-    // - au civil : frais funéraires réels, pas de biens meublants (soit déjà compté dans l'actif de communauté, soit répartition amiable)
-    // - au fiscal : forfait de 1500 € pour les frais funéraires, biens meublants de 5% de l'actif brut de communauté si forfait mobilier utilisé
+    // - au civil :
+    //    - frais funéraires réels
+    //    - pas de biens meublants (soit déjà compté dans l'actif de communauté, soit répartition amiable)
+    // - au fiscal :
+    //    - forfait plafond de 1500 € pour les frais funéraires limité par les frais réels (mettre les frais
+    //      funéraires réels à 0 permet donc une simulation simplifiée avec les 2 frais funéraires à 0)
+    //    - biens meublants de 5% de l'actif brut de communauté si forfait mobilier utilisé
     result.premier_deces_civil.actif_net_succession =
         result.premier_deces_civil.actif_brut_succession - input.frais_funeraires;
     result.premier_deces_fiscal.actif_net_succession =
-        result.premier_deces_fiscal.actif_brut_succession - FORFAIT_FRAIS_FUNERAIRES;
+        result.premier_deces_fiscal.actif_brut_succession
+            - cmp::min(input.frais_funeraires, FORFAIT_FRAIS_FUNERAIRES);
     if input.forfait_mobilier {
         // input.biens_meublants contient le forfait calculé dans l'UI
         result.premier_deces_fiscal.actif_net_succession += input.biens_meublants;
@@ -377,7 +383,8 @@ fn bareme_usufruit(age_usufrutier: i32) -> (f64, f64) {
     (us, np)
 }
 
-// Droits de succession en ligne direct sur la part taxable après abattement de 100 000 €
+// Droits de succession en ligne directe sur la part taxable après abattement de 100 000 €
+// (cf. https://www.economie.gouv.fr/particuliers/preparer-ma-retraite-et-ma-succession/droits-de-succession-que-devez-vous-payer-sur-votre-part)
 fn droits_en_ligne_direct(part: f64) -> f64 {
     let res = if part <= 8_072.0 {
         part * 0.05

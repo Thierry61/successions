@@ -452,9 +452,9 @@ pub fn Rapport(
                         ul { class: "ml-5 list-disc list-outside",
                             li { class: "list-none text-right opacity-0", "Plan : " }
                             li { "Actif brut de communauté :" }
+                            li { "Actif net de communauté :" }
                             li { "Récompense due par le survivant :" }
                             li { "Récompense due par le défunt :" }
-                            li { "Actif net de communauté :" }
                             li { "Solde de récompenses :" }
                             li { "Actif net de communauté après récompenses :" }
                             li { "Actif brut de succession :" }
@@ -464,9 +464,9 @@ pub fn Rapport(
                         ul {
                             li { class: "text-center", "Civil" }
                             Euros { val: result.premier_deces_civil().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_civil().actif_net_communaute() }
                             Euros { val: result.premier_deces_civil().recompense_due_par_le_survivant() }
                             Euros { val: result.premier_deces_civil().recompense_due_par_le_defunt() }
-                            Euros { val: result.premier_deces_civil().actif_net_communaute() }
                             Euros { val: result.premier_deces_civil().solde_recompenses() }
                             Euros { val: result.premier_deces_civil().actif_net_communaute_ajuste() }
                             Euros { val: result.premier_deces_civil().actif_brut_succession() }
@@ -476,9 +476,9 @@ pub fn Rapport(
                         ul {
                             li { class: "text-center", "Fiscal" }
                             Euros { val: result.premier_deces_fiscal().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_fiscal().actif_net_communaute() }
                             Euros { val: result.premier_deces_fiscal().recompense_due_par_le_survivant() }
                             Euros { val: result.premier_deces_fiscal().recompense_due_par_le_defunt() }
-                            Euros { val: result.premier_deces_fiscal().actif_net_communaute() }
                             Euros { val: result.premier_deces_fiscal().solde_recompenses() }
                             Euros { val: result.premier_deces_fiscal().actif_net_communaute_ajuste() }
                             Euros { val: result.premier_deces_fiscal().actif_brut_succession() }
