@@ -54,7 +54,7 @@ fn Checkbox(
                 onclick: move |_| {
                     signal.toggle();
                     // Recalcule le champ biens meublants si forfait mobilier est coché.
-                    gere_biens_meublants(store);
+                    gere_biens_meublants(store, true);
                 },
                 checked: signal,
             }
@@ -122,7 +122,7 @@ fn Input(
         }
         // Puis effectue éventuellement un traitement global inter-champs
         if input_type == InputType::ResidencePrincipale || input_type == InputType::Placements {
-            gere_biens_meublants(store);
+            gere_biens_meublants(store, false);
         }
     };
     // Vérifie le champ caractère par caractère
@@ -198,7 +198,7 @@ fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
 }
 
 // Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de l'actif brut successoral en permanence
-fn gere_biens_meublants(store: Option<Store<InputState>>) {
+fn gere_biens_meublants(store: Option<Store<InputState>>, changement_mode: bool) {
     if let Some(store) = store {
         let forfait_mobilier = *store.forfait_mobilier().read();
         if forfait_mobilier {
@@ -210,6 +210,14 @@ fn gere_biens_meublants(store: Option<Store<InputState>>) {
                 placements,
                 dettes,
             ));
+        } else {
+            if changement_mode {
+                // Traitement effectué en quittant le mode forfait : doubler les biens meublants
+                // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
+                // au lieu d'un actif de succession)
+                let biens_meublants = *store.biens_meublants().read();
+                store.biens_meublants().set(2 * biens_meublants);
+            }
         }
     }
 }

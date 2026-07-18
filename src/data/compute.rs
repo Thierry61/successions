@@ -17,7 +17,7 @@ use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState}
 
 // Calcul au niveau des structures sous-jacentes (par opposition aux wrappers de type store)
 // - distribution des AV aux bénéficiaires et calcul des récompenses associées
-// - liquiditation du la communauté
+// - liquiditation de la communauté
 // - calcul de la succession et de la part du conjoint survivant hors succession
 // - répartition de la succession pour chacune des 4 options possibles
 pub fn compute(input: InputState, result: &mut ResultState) {
@@ -273,6 +273,9 @@ fn calcul_option(
         cmp::max(0, result.premier_deces_civil.actif_brut_succession),
         option.premier_total.part_civile,
     );
+    // Les donations-partages étant :
+    // - conjonctives : la division par 2 représente la part donnée par le donateur défunt.
+    // - égalitaires : la division par input.nb_enfants représente la part reçue par un donataire enfant.
     calcul_heritier(
         &mut option.premier_enfant,
         Some(input.donations_partages / 2 / input.nb_enfants),
@@ -308,15 +311,36 @@ fn calcul_option(
     // Calcul du 2eme décès
     // --------------------
 
-    // Extinction d'usufruit (US + NP enfin reçus par les enfants et déjà taxés au 1er décès)
-    option.deuxieme_total.extinction_us =
-        option.premier_survivant.heritage_us + input.nb_enfants * option.premier_enfant.heritage_np;
+    // En cas d'utilisation du forfait mobilier les biens meublants ont été comptabilisés au fiscal
+    // dans l'actif net de succession du 1er décès, mais ils n'ont pas été intégrés au civil.
+    // Ils manquent donc dans l'extinction d'usufruit et dans la part civile du 2ème décès.
+    // Les biens meublants sont ajoutés à l'actif de succession quand la case forfait mobilier est cochée
+    // et à l'actif de communauté quand elle ne l'est pas. Les biens meublants du forfait mobilier représentent
+    // donc le double de la valeur hors forfait et il faut les dédoubler dans le cadre du forfait :
+    // - une 1ère instance représente la succession répartie en US et PP pour le survivant (dans les 2 formules)
+    // - une 2ème instance représente la part hors succession du survivant (le coefficient 1.0 dans la 2ème formule)
+    let (biens_meublants_us, biens_meublants_pp) = if input.forfait_mobilier {
+        (
+            (fractionnement.us_survivant * input.biens_meublants as f64) as i32,
+            ((fractionnement.pp_survivant + 1.0) * input.biens_meublants as f64) as i32,
+        )
+    } else {
+        (0, 0)
+    };
+
+    // Extinction d'usufruit : US/NP enfin reçus par les enfants et déjà taxés au 1er décès
+    // + partie des biens meublants en US dans le cadre du forfait mobilier
+    option.deuxieme_total.extinction_us = option.premier_survivant.heritage_us
+        + input.nb_enfants * option.premier_enfant.heritage_np
+        + biens_meublants_us;
 
     // Part civile:
     // La part du survivant hors succession + sa part en PP dans la succession + le capital de l'AV qu'il avait reçu du conjoint
+    // + partie des biens meublants en PP dans le cadre du forfait mobilier
     option.deuxieme_total.part_civile = result.premier_deces_civil.part_survivant_hors_succession
         + option.premier_survivant.heritage_pp
-        + result.premier_av_survivant.net;
+        + result.premier_av_survivant.net
+        + biens_meublants_pp;
 
     // Part fiscale:
     // Un actif net fiscal négatif est remis à 0 (pour éviter des impôts négatifs)
