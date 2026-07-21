@@ -36,6 +36,12 @@ fn Fieldset(
     }
 }
 
+#[derive(PartialEq, Clone, Copy)]
+enum CheckboxType {
+    ForfaitMobilier,
+    DecesAvant70Ans,
+}
+
 #[component]
 fn Checkbox(
     id: &'static str,
@@ -43,7 +49,22 @@ fn Checkbox(
     tooltip: &'static str,
     signal: WriteSignal<bool>,
     store: Option<Store<InputState>>,
+    checkbox_type: Option<CheckboxType>,
 ) -> Element {
+    // Désactive le champ décès avant 70 ans quand le survivant est déjà agé de 70 ans
+    let disabled = use_memo(move || {
+        if checkbox_type == Some(CheckboxType::DecesAvant70Ans) {
+            if let Some(store) = store {
+                let age_survivant = if *store.ordre_deces().read() {
+                    *store.age_conjoint().read()
+                } else {
+                    *store.age_vous().read()
+                };
+                return age_survivant >= 70;
+            };
+        };
+        false
+    });
     rsx! {
         div { class: "tooltip-top tooltip",
             span { class: "tooltip-text ml-12!", {tooltip} }
@@ -53,10 +74,15 @@ fn Checkbox(
                 r#type: "checkbox",
                 onclick: move |_| {
                     signal.toggle();
-                    // Recalcule le champ biens meublants si forfait mobilier est coché.
-                    gere_biens_meublants(store, true);
+                    if let Some(store) = store {
+                        if checkbox_type == Some(CheckboxType::ForfaitMobilier) {
+                            // Recalcule le champ biens meublants si forfait mobilier est coché.
+                            gere_biens_meublants(store, true);
+                        }
+                    }
                 },
                 checked: signal,
+                disabled,
             }
             label { r#for: id, "{lab}" }
         }
@@ -65,22 +91,22 @@ fn Checkbox(
 
 #[derive(PartialEq, Clone, Copy)]
 enum InputType {
+    Age,
     NbEnfants,
     BiensMeublants,
     ResidencePrincipale,
     Placements,
-    Autres,
 }
 
 #[component]
 fn Input(
     signal: WriteSignal<i32>,
     store: Option<Store<InputState>>,
-    input_type: InputType,
+    input_type: Option<InputType>,
 ) -> Element {
     // Désactive le champ biens meublants quand forfait mobilier est coché
     let disabled = use_memo(move || {
-        if input_type == InputType::BiensMeublants {
+        if input_type == Some(InputType::BiensMeublants) {
             if let Some(store) = store {
                 return *store.forfait_mobilier().read();
             };
@@ -105,7 +131,7 @@ fn Input(
         }
         // On met la valeur par défaut à la place d'un champ vide en mode onchange
         if new_val.is_empty() && is_change {
-            signal.set(if input_type == InputType::NbEnfants {
+            signal.set(if input_type == Some(InputType::NbEnfants) {
                 DEFAUT_NB_ENFANTS
             } else {
                 i32::default()
@@ -115,14 +141,29 @@ fn Input(
             let unsigned_old_val = signal() as u32;
             let mut unsigned_new_val: u32 = new_val.parse().unwrap_or(unsigned_old_val);
             // Idem si le nb d'enfants vaut 0
-            if input_type == InputType::NbEnfants && unsigned_new_val == 0 {
+            if input_type == Some(InputType::NbEnfants) && unsigned_new_val == 0 {
                 unsigned_new_val = unsigned_old_val;
             }
             *signal.write() = unsigned_new_val as i32;
         }
         // Puis effectue éventuellement un traitement global inter-champs
-        if input_type == InputType::ResidencePrincipale || input_type == InputType::Placements {
-            gere_biens_meublants(store, false);
+        if let Some(store) = store {
+            match input_type {
+                Some(InputType::ResidencePrincipale) | Some(InputType::Placements) => {
+                    gere_biens_meublants(store, false)
+                }
+                Some(InputType::Age) => {
+                    let age_survivant = if *store.ordre_deces().read() {
+                        *store.age_conjoint().read()
+                    } else {
+                        *store.age_vous().read()
+                    };
+                    if age_survivant >= 70 {
+                        store.deces_survivant_apres_70_ans().set(true);
+                    }
+                }
+                _ => {}
+            }
         }
     };
     // Vérifie le champ caractère par caractère
@@ -139,7 +180,7 @@ fn Input(
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
             class: "remove-arrow",
             r#type: "number",
-            min: if input_type == InputType::NbEnfants { "1" } else { "0" },
+            min: if input_type == Some(InputType::NbEnfants) { "1" } else { "0" },
             pattern: "[0-9]+",
             disabled,
             // Les 2 sont nécessaires pour gérer correctement le double effacement du dernier caractère.
@@ -171,7 +212,7 @@ fn InputWithLabel(
     tooltip: &'static str,
     signal: WriteSignal<i32>,
     store: Option<Store<InputState>>,
-    input_type: InputType,
+    input_type: Option<InputType>,
 ) -> Element {
     rsx! {
         div { id,
@@ -189,35 +230,38 @@ fn InputWithLabel(
 }
 
 #[component]
-fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
+fn InputWithoutLabel(
+    id: &'static str,
+    signal: WriteSignal<i32>,
+    store: Option<Store<InputState>>,
+    input_type: Option<InputType>,
+) -> Element {
     rsx! {
         div { id,
-            Input { signal, input_type: InputType::Autres }
+            Input { signal, store, input_type }
         }
     }
 }
 
 // Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de l'actif brut successoral en permanence
-fn gere_biens_meublants(store: Option<Store<InputState>>, changement_mode: bool) {
-    if let Some(store) = store {
-        let forfait_mobilier = *store.forfait_mobilier().read();
-        if forfait_mobilier {
-            let residence_principale = *store.residence_principale().read();
-            let placements = *store.placements().read();
-            let dettes = *store.dettes().read();
-            store.biens_meublants().set(calcul_biens_meublants(
-                residence_principale,
-                placements,
-                dettes,
-            ));
-        } else {
-            if changement_mode {
-                // Traitement effectué en quittant le mode forfait : doubler les biens meublants
-                // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
-                // au lieu d'un actif de succession)
-                let biens_meublants = *store.biens_meublants().read();
-                store.biens_meublants().set(2 * biens_meublants);
-            }
+fn gere_biens_meublants(store: Store<InputState>, changement_mode: bool) {
+    let forfait_mobilier = *store.forfait_mobilier().read();
+    if forfait_mobilier {
+        let residence_principale = *store.residence_principale().read();
+        let placements = *store.placements().read();
+        let dettes = *store.dettes().read();
+        store.biens_meublants().set(calcul_biens_meublants(
+            residence_principale,
+            placements,
+            dettes,
+        ));
+    } else {
+        if changement_mode {
+            // Traitement effectué en quittant le mode forfait : doubler les biens meublants
+            // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
+            // au lieu d'un actif de succession)
+            let biens_meublants = *store.biens_meublants().read();
+            store.biens_meublants().set(2 * biens_meublants);
         }
     }
 }
@@ -240,20 +284,24 @@ pub fn MainPart(cookies: String) -> Element {
         // Une forme est nécessaire pour déclencher le calcul en entrant un retour-chariot sur n'importe quel champ.
         form {
             div { class: "m-3",
-                "Hypothèses principales :"
-                ul { class: "ml-5 list-disc list-outside",
-                    li {
-                        "couple marié sous le régime légal (communauté réduite aux acquêts) avec au moins un enfant"
+                details { open: "false",
+                    summary { class: "mt-2 text-sm leading-6 font-semibold select-none",
+                        "Hypothèses principales :"
                     }
-                    li {
-                        "tous les éléments sont communs (biens, dettes et fonds alimentant les placements et les donations)"
-                    }
-                    li { "les versements sur les assurances-vie ont été effectués avant 70 ans" }
-                    li {
-                        "les bénéficiaires des assurances-vie sont soit les enfants, soit le conjoint (puis les enfants au second décès)"
-                    }
-                    li {
-                        "les bénéficiaires des PER sont le conjoint (puis les enfants au second décès)"
+                    ul { class: "ml-5 list-disc list-outside",
+                        li {
+                            "Le couple est marié sous le régime légal (communauté réduite aux acquêts) et a au moins un enfant."
+                        }
+                        li {
+                            "Tous les éléments sont communs (enfants, biens, dettes et fonds alimentant les placements et les donations)."
+                        }
+                        li { "Les versements sur les assurances-vie ont été effectués avant 70 ans." }
+                        li {
+                            "Les bénéficiaires des assurances-vie sont soit les enfants, soit le conjoint puis les enfants."
+                        }
+                        li {
+                            "Les PER modélisés sont des PER assurantiels et leurs bénéficiaires sont le conjoint puis les enfants."
+                        }
                     }
                 }
             }
@@ -286,7 +334,6 @@ pub fn MainPart(cookies: String) -> Element {
                     lab: "Dettes et impôts",
                     tooltip: "Dettes de la communauté, y compris les impôts restants à payer.",
                     signal: input.dettes(),
-                    input_type: InputType::Autres,
                 }
                 InputWithLabel {
                     id: "biens-meublants",
@@ -301,14 +348,12 @@ pub fn MainPart(cookies: String) -> Element {
                     lab: "Frais funéraires réels",
                     tooltip: "Frais funéraire réels déduits de l'actif successoral net (plan civil), par opposition au forfait de 1500€ déduit sur le plan fiscal.",
                     signal: input.frais_funeraires(),
-                    input_type: InputType::Autres,
                 }
                 InputWithLabel {
                     id: "donations-partages",
                     lab: "Donations partages",
                     tooltip: "Donations-partages de moins de 15 ans, conjonctives, égalitaires et hors dons Sarkozy (plan fiscal).",
                     signal: input.donations_partages(),
-                    input_type: InputType::Autres,
                 }
             }
             div { class: "ml-2 mb-2 flex flex-wrap gap-4",
@@ -323,18 +368,26 @@ pub fn MainPart(cookies: String) -> Element {
                         div { class: "pl-5 py-1", "Vous" }
                         div { class: "pl-2 py-1", "Conjoint" }
                         div { class: "col-span-2 tooltip-top tooltip",
-                            span { class: "tooltip-text w-70!",
-                                "Permet de déterminer le barème fiscal de l'usufruit et de la nue-propriété, ainsi que la fiscalité des PER."
+                            span { class: "tooltip-text",
+                                "Détermine le barème fiscal de l'usufruit et de la nue-propriété."
                             }
                             "Ages des époux"
                         }
-                        InputWithoutLabel { id: "age_vous", signal: input.age_vous() }
-                        InputWithoutLabel { id: "age_conjoint", signal: input.age_conjoint() }
+                        InputWithoutLabel {
+                            id: "age_vous",
+                            input_type: InputType::Age,
+                            store: input,
+                            signal: input.age_vous(),
+                        }
+                        InputWithoutLabel {
+                            id: "age_conjoint",
+                            input_type: InputType::Age,
+                            store: input,
+                            signal: input.age_conjoint(),
+                        }
                         div { class: "col-span-2 tooltip-top tooltip",
-                            span { class: "tooltip-text w-70!",
-                                "AV défunt bénéfice survivant : aucune récompense n'est due."
-                                br {}
-                                "AV survivant : le survivant doit une récompense à la communauté."
+                            span { class: "tooltip-text w-65!",
+                                "Les prélèvements sociaux sur les plus-values sont à déduire (fonds euros pour l'année courante et UC depuis l'origine)."
                             }
                             "AV bénéfice conjoint"
                         }
@@ -347,10 +400,8 @@ pub fn MainPart(cookies: String) -> Element {
                             signal: input.av_conjoint_conjoint(),
                         }
                         div { class: "col-span-2 tooltip-top tooltip",
-                            span { class: "tooltip-text w-66!",
-                                "AV défunt bénéfice enfants : le défunt doit une récompense à la communauté (sauf si dispense)."
-                                br {}
-                                "AV survivant : le survivant doit une récompense à la communauté."
+                            span { class: "tooltip-text w-65!",
+                                "Les prélèvements sociaux sur les plus-values sont à déduire (fonds euros pour l'année courante et UC depuis l'origine)."
                             }
                             "AV bénéfice enfants"
                         }
@@ -363,10 +414,8 @@ pub fn MainPart(cookies: String) -> Element {
                             signal: input.av_conjoint_enfants(),
                         }
                         div { class: "col-span-2 tooltip-top tooltip",
-                            span { class: "tooltip-text w-75!",
-                                "PER défunt bénéfice survivant : aucune récompense n'est due."
-                                br {}
-                                "PER survivant : aucune récompense n'est due."
+                            span { class: "tooltip-text w-50!",
+                                "Les prélèvements sociaux sur les plus-values ne sont pas à déduire."
                             }
                             "PER bénéfice conjoint"
                         }
@@ -388,12 +437,21 @@ pub fn MainPart(cookies: String) -> Element {
                             tooltip: "Forfait de 5% de l'actif successoral brut pour les biens meublants.",
                             signal: input.forfait_mobilier(),
                             store: Some(input),
+                            checkbox_type: CheckboxType::ForfaitMobilier,
                         }
                         Checkbox {
                             id: "ordre-décès",
                             lab: "Ordre des décès : vous puis votre conjoint",
                             tooltip: "Simulation supposant que vous décédiez avant votre conjoint.",
                             signal: input.ordre_deces(),
+                        }
+                        Checkbox {
+                            id: "deces-survivant-apres-70-ans",
+                            lab: "Décès de l'époux survivant après 70 ans.",
+                            tooltip: "Détermine la fiscalité du PER du conjoint survivant à son décès.",
+                            signal: input.deces_survivant_apres_70_ans(),
+                            store: Some(input),
+                            checkbox_type: CheckboxType::DecesAvant70Ans,
                         }
                         Checkbox {
                             id: "dispense-récompense",

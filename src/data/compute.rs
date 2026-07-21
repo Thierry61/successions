@@ -1,10 +1,12 @@
 use std::cmp;
 
 use crate::data::{
-    BeneficiaireState, HeritierState, ABATTEMENT_AV, ABATTEMENT_DROITS, FORFAIT_FRAIS_FUNERAIRES,
-    REMISE_RP_FISCALE,
+    BeneficiaireState, HeritierState, ABATTEMENT_AV, ABATTEMENT_DROITS, ABATTEMENT_PER,
+    FORFAIT_FRAIS_FUNERAIRES, REMISE_RP_FISCALE,
 };
 use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState};
+
+// TODO: faire les calculs dans le domaine f64 et à la fin seulement stocker les résultats dans des i32
 
 // Voici le résumé des échanges sur le forum MoneyVox concernant les récompenses :
 // - AV du conjoint survivant : le survivant conserve son contrat mais il doit une récompense à la communauté (sur le plan civil uniquement)
@@ -21,19 +23,45 @@ use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState}
 // - calcul de la succession et de la part du conjoint survivant hors succession
 // - répartition de la succession pour chacune des 4 options possibles
 pub fn compute(input: InputState, result: &mut ResultState) {
-    // Si le conjoint survivant possède des AV alors il les conserve mais il doit une récompense à la communauté.
-    // (au civil uniquement)
-    let av = if input.ordre_deces {
+    // Récupération des AV et PER détenus en propre par le conjoint survivant
+    let (av, per) = if input.ordre_deces {
         // Le survivant est votre conjoint
-        input.av_conjoint_conjoint + input.av_conjoint_enfants
+        (
+            input.av_conjoint_conjoint + input.av_conjoint_enfants,
+            input.per_conjoint_conjoint,
+        )
     } else {
         // Vous êtes le survivant
-        input.av_vous_conjoint + input.av_vous_enfants
+        (
+            input.av_vous_conjoint + input.av_vous_enfants,
+            input.per_vous_conjoint,
+        )
     };
+
+    // Si le conjoint survivant possède des AV alors il les conserve mais il doit une récompense à la communauté.
+    // (au civil uniquement)
     result.premier_deces_civil.recompense_due_par_le_survivant = av;
     result.premier_deces_civil.solde_recompenses += av;
-    // Ces AV seront transmises aux enfants au 2eme décès avec des prélèvements fiscaux
-    calcul_beneficiaire(&mut result.deuxieme_av_enfant, av / input.nb_enfants);
+
+    // Si le conjoint survivant possède un PER alors il le conserve sans devoir de récompense.
+    // Le capital sera transmis aux enfants au 2ème décès. Si le survivant décède avant 70 ans
+    // alors le capital est intégré dans la fonction calcul_beneficiaire car les AV et PER avant 70 ans
+    // sont transmis aux enfants au 2ème décès avec la fiscalité des AV.
+    calcul_beneficiaire(
+        &mut result.deuxieme_av_enfant,
+        av / input.nb_enfants
+            + if !input.deces_survivant_apres_70_ans {
+                per / input.nb_enfants
+            } else {
+                0
+            },
+    );
+
+    // Les PER après 70 ans sont soumis aux droits de succession après un abattement de 30 500 €
+    if input.deces_survivant_apres_70_ans {
+        result.deuxieme_per = per / input.nb_enfants;
+        result.deuxieme_per_total = per;
+    }
 
     // Si le défunt avait une AV au bénéfice des enfants alors ceux-ci reçoivent le capital mais le défunt doit une récompense à la communauté,
     // sauf si le survivant formalise une dispense de récompense avec le notaire.
@@ -54,17 +82,22 @@ pub fn compute(input: InputState, result: &mut ResultState) {
     // Cette AV est transmise aux enfants au 1er décès avec des prélèvements fiscaux
     calcul_beneficiaire(&mut result.premier_av_enfant, av / input.nb_enfants);
 
-    // Si le défunt avait une AV au bénéfice du conjoint alors celui-ci reçoit le capital sans qu'une récompense soit due.
-    let av = if input.ordre_deces {
+    // Si le défunt avait une AV ou un PER au bénéfice du conjoint alors celui-ci reçoit le capital sans qu'une récompense soit due.
+    let (av, per) = if input.ordre_deces {
         // Vous êtes le défunt
-        input.av_vous_conjoint
+        (input.av_vous_conjoint, input.per_vous_conjoint)
     } else {
         // Votre conjoint est le défunt
-        input.av_conjoint_conjoint
+        (input.av_conjoint_conjoint, input.per_conjoint_conjoint)
     };
     // Cette AV est transmise au survivant sans prélèvements fiscaux
     result.premier_av_survivant.brut = av;
     result.premier_av_survivant.net = av;
+    // Normalement si le défunt avait plus de 70 ans alors le capital du PER est soumis aux droits de successions (au delà
+    // de l'abattement de 30 500 €) mais comme le conjoint en est exonéré on le garde à part pour le traiter spécifiquement
+    // au 2ème décès.
+    result.premier_per = per;
+    result.premier_per_total = per;
 
     // Répartition des totaux des AV transmises aux bénéficiaires
     repartition_beneficiaire_total(
@@ -202,7 +235,6 @@ fn coef_declaration_succession(ignorer: bool, assiette: i32, part_civile_totale:
 }
 
 // Calcul d'une option
-// TODO: faire les calculs dans le domaine f64 et à la fin seulement stocker les résultats dans des i32
 fn calcul_option(
     option: &mut OptionState,
     fractionnement: FractionnementPropriete,
@@ -289,7 +321,7 @@ fn calcul_option(
     calcul_heritier(
         &mut option.premier_survivant,
         None,
-        result.premier_av_survivant.net,
+        result.premier_av_survivant.net + result.premier_per,
         None,
         assiette_partage_total,
         coef,
@@ -308,7 +340,7 @@ fn calcul_option(
     option.premier_notaire = option.premier_total.emoluments_partage
         + option.premier_total.emoluments_declaration_succession;
 
-    // Calcul du 2eme décès
+    // Calcul du 2ème décès
     // --------------------
 
     // En cas d'utilisation du forfait mobilier les biens meublants ont été comptabilisés au fiscal
@@ -335,16 +367,26 @@ fn calcul_option(
         + biens_meublants_us;
 
     // Part civile:
-    // La part du survivant hors succession + sa part en PP dans la succession + le capital de l'AV qu'il avait reçu du conjoint
+    // La part du survivant hors succession + sa part en PP dans la succession + les capitaux de l'AV et du PER reçus du conjoint
     // + partie des biens meublants en PP dans le cadre du forfait mobilier
     option.deuxieme_total.part_civile = result.premier_deces_civil.part_survivant_hors_succession
         + option.premier_survivant.heritage_pp
         + result.premier_av_survivant.net
+        + result.premier_per
         + biens_meublants_pp;
 
+    // PER propre du survivant.
+    // Le capital est transmis directement aux enfants, mais s'il décède après 70 ans
+    // alors il est soumis aux droits de succession au delà de l'abattement commun de 30 500 €
+    let per_survivant_taxable = cmp::max(0, result.deuxieme_per_total - ABATTEMENT_PER);
+
     // Part fiscale:
-    // Un actif net fiscal négatif est remis à 0 (pour éviter des impôts négatifs)
-    option.deuxieme_total.part_fiscale = cmp::max(0, option.deuxieme_total.part_civile);
+    // Un actif net fiscal négatif est remis à 0 (pour éviter des impôts négatifs).
+    // Le max inclut per_survivant_taxable ce qui fait qu'il peut être absorbé tout ou partie
+    // par une éventuelle succession négative, c'est logique d'un point de vue économique mais
+    // est-ce ainsi que procède le fisc ?
+    option.deuxieme_total.part_fiscale =
+        cmp::max(0, option.deuxieme_total.part_civile + per_survivant_taxable);
 
     // Chaque enfant a sa part proportionnelle de ces éléments
     option.deuxieme_enfant.extinction_us = option.deuxieme_total.extinction_us / input.nb_enfants;
@@ -369,7 +411,8 @@ fn calcul_option(
     calcul_heritier(
         &mut option.deuxieme_enfant,
         Some(input.donations_partages / 2 / input.nb_enfants),
-        result.deuxieme_av_enfant.net,
+        // AV et PER avant 70 ans propres au survivant
+        result.deuxieme_av_enfant.net + result.deuxieme_per,
         Some(input.nb_enfants),
         assiette_partage_total,
         coef,
@@ -448,7 +491,7 @@ fn droits_en_ligne_direct(part: f64) -> f64 {
 // Calcul de l'héritage net des enfants ou du survivant, soit au 1er décès, soit au second décès.
 // - la présence d'une donation partage (valant éventuellement 0) indique que l'on est en train de traiter les enfants (pris en compte dans l'abattement fiscal)
 //   Rappel: les donations-partages traitées sont conjonctives, égalitaires et de moins de 15 ans.
-// - la présence du nombre d'enfants indique que l'on est en train de traiter le 2eme décès (pour déterminer l'assiette des droits de partage)
+// - la présence du nombre d'enfants indique que l'on est en train de traiter le 2ème décès (pour déterminer l'assiette des droits de partage)
 // - l'assiette globale pour les émoluments de partage est passée en paramètre car ils ne sont pas proportionnels mais sont calculés
 //   avec des pourcentages différents par tranche de l'actif brut et chaque héritier a une connaissance partielle de cette assiette.
 // - pour la déclaration de succession ce n'est pas l'assiette qui est passée en paramètre mais le coefficient multiplicateur.
@@ -457,7 +500,7 @@ fn droits_en_ligne_direct(part: f64) -> f64 {
 fn calcul_heritier(
     heritier: &mut HeritierState,
     donations_partages: Option<i32>,
-    av_net: i32,
+    av_per_net: i32,
     nb_enfants: Option<i32>,
     assiette_partage_globale: i32,
     coef_declaration_succession: f64,
@@ -519,7 +562,7 @@ fn calcul_heritier(
         - heritier.emoluments_declaration_succession;
 
     // Flux financier réel: il faut soustraire la nue-propriété et l'usufruit qui sont pour l'instant virtuels.
-    // Le flux ne sera matérialisé qu'au 2eme décès lors de l'extinction de l'usufruit.
+    // Le flux ne sera matérialisé qu'au 2ème décès lors de l'extinction de l'usufruit.
     // En l'absence de PP ou d'AV reçues le flux peut même être négatif au 1er décès pour les enfants
     // car ceux-ci payent des droits de succession sur des NP dont ils ne disposent pas encore.
     if enfant {
@@ -532,8 +575,8 @@ fn calcul_heritier(
         heritier.flux_financier = heritier.heritage_net - heritier.heritage_us;
     }
 
-    // Dans tous les cas l'héritier touche le capital de l'AV dont il est bénéficiare
-    heritier.flux_financier_avec_av = heritier.flux_financier + av_net;
+    // Dans tous les cas l'héritier touche le capital de l'AV et du PER dont il est bénéficiare
+    heritier.flux_financier_avec_av = heritier.flux_financier + av_per_net;
 }
 
 // Répartition des totaux des héritages

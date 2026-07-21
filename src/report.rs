@@ -136,12 +136,54 @@ fn AssuranceVie(
     }
 }
 
+#[component]
+fn Per(
+    enfant_ou_survivant: ReadSignal<i32>,
+    affiche_survivant: bool,
+    total: ReadSignal<i32>,
+) -> Element {
+    rsx! {
+        div {
+            div { class: "flex flex-row gap-6",
+                ul { class: "ml-5 list-disc list-outside",
+                    li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
+                    HilightCredit {
+                        li { "Capitaux décès nets :" }
+                    }
+                }
+                ul {
+                    li { class: "text-center",
+                        div {
+                            if affiche_survivant {
+                                "Survivant"
+                            } else {
+                                "Chaque enfant"
+                            }
+                        }
+                    }
+                    HilightCredit {
+                        Euros { val: enfant_ou_survivant }
+                    }
+                }
+                ul {
+                    li { class: "text-center",
+                        div { "Total" }
+                    }
+                    HilightCredit {
+                        Euros { val: total() }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Affichage des résultat pour une des 4 options possibles
 #[component]
 fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Element {
     rsx! {
         div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
-            h1 { class: "font-bold mt-2", "Répartition 1er décès :" }
+            h1 { class: "font-bold mt-2", "Répartition au 1er décès :" }
             div {
                 div { class: "flex flex-row gap-6",
                     ul { class: "ml-5 list-disc list-outside",
@@ -166,7 +208,7 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         HilightCredit {
                             li { "Héritage net :" }
                             li { "Flux financier :" }
-                            li { "Flux financier avec AV:" }
+                            li { "Flux financier avec AV et PER :" }
                         }
                     }
                     ul {
@@ -252,7 +294,7 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                     }
                 }
             }
-            h1 { class: "font-bold mt-2", "Répartition 2eme décès :" }
+            h1 { class: "font-bold mt-2", "Répartition au 2ème décès :" }
             div {
                 div { class: "flex flex-row gap-6",
                     ul { class: "ml-5 list-disc list-outside",
@@ -274,8 +316,8 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         }
                         HilightCredit {
                             li { "Héritage net = Flux financier :" }
-                            li { "Flux financier avec AV:" }
-                            li { "Flux financier total des 2 décès:" }
+                            li { "Flux financier avec AV et PER :" }
+                            li { "Flux financier total des 2 décès :" }
                         }
                     }
                     ul {
@@ -446,7 +488,7 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "Succession 1er décès :" }
+                h1 { class: "font-bold", "Succession au 1er décès :" }
                 div {
                     div { class: "flex flex-row gap-6",
                         ul { class: "ml-5 list-disc list-outside",
@@ -489,7 +531,7 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "Assurances-vie 1er décès :" }
+                h1 { class: "font-bold", "Assurances-vie dénouées au 1er décès :" }
                 AssuranceVie {
                     enfant: result.premier_av_enfant(),
                     survivant: result.premier_av_survivant(),
@@ -498,13 +540,33 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "Assurances-vie 2ème décès :" }
+                h1 { class: "font-bold", "PER dénoués au 1er décès :" }
+                Per {
+                    enfant_ou_survivant: result.premier_per(),
+                    affiche_survivant: true,
+                    total: result.premier_per_total(),
+                }
+            }
+            div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+                h1 { class: "font-bold",
+                    "Assurances-vie et PER soumis à la fiscalité des AV dénoués au 2ème décès :"
+                }
                 AssuranceVie {
                     enfant: result.deuxieme_av_enfant(),
                     // Store bidon pour l'AV non affichée
                     survivant: result.deuxieme_av_enfant(),
                     affiche_survivant: false,
                     total: result.deuxieme_av_total(),
+                }
+            }
+            div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+                h1 { class: "font-bold",
+                    "PER soumis aux droits de succession dénoués au 2ème décès :"
+                }
+                Per {
+                    enfant_ou_survivant: result.deuxieme_per(),
+                    affiche_survivant: false,
+                    total: result.deuxieme_per_total(),
                 }
             }
             details { class: "p-2", open: "false",

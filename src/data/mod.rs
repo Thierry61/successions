@@ -8,6 +8,7 @@ pub const REMISE_RP_FISCALE: f64 = 0.2;
 pub const DEFAUT_NB_ENFANTS: i32 = 2;
 pub const ABATTEMENT_AV: i32 = 152_500;
 pub const ABATTEMENT_DROITS: i32 = 100_000;
+pub const ABATTEMENT_PER: i32 = 30_500;
 
 // Crée un cookie ou le détruit si la valeur est la valeur par défaut de l'entrée
 // (plus exactement ajoute dans la variable js l'instruction javascript effectuant cette action)
@@ -62,6 +63,7 @@ pub struct InputState {
     donations_partages: i32,
     forfait_mobilier: bool,
     ordre_deces: bool,
+    deces_survivant_apres_70_ans: bool,
     dispense_recompense: bool,
     ignorer_couts_partage: bool,
     ignorer_declaration_succession: bool,
@@ -79,8 +81,8 @@ impl InputState {
     pub fn new() -> Self {
         Self {
             nb_enfants: DEFAUT_NB_ENFANTS,
-            forfait_mobilier: true,
             ordre_deces: true,
+            deces_survivant_apres_70_ans: true,
             dispense_recompense: true,
             ..Default::default()
         }
@@ -140,6 +142,11 @@ impl InputState {
                 "ordre_deces" => {
                     if let Ok(val) = val.parse::<i32>() {
                         ret.ordre_deces = val == 1;
+                    }
+                }
+                "deces_survivant_apres_70_ans" => {
+                    if let Ok(val) = val.parse::<i32>() {
+                        ret.deces_survivant_apres_70_ans = val == 1;
                     }
                 }
                 "dispense_recompense" => {
@@ -205,6 +212,15 @@ impl InputState {
                 ret.biens_meublants =
                     calcul_biens_meublants(ret.residence_principale, ret.placements, ret.dettes);
             }
+            // Idem pour le cas où le cookie relatif au deces avant 70 ans est erroné
+            let age_survivant = if ret.ordre_deces {
+                ret.age_conjoint
+            } else {
+                ret.age_vous
+            };
+            if age_survivant >= 70 {
+                ret.deces_survivant_apres_70_ans = true;
+            }
         }
         ret
     }
@@ -220,6 +236,7 @@ impl InputState {
             donations_partages: *store.donations_partages().read(),
             forfait_mobilier: *store.forfait_mobilier().read(),
             ordre_deces: *store.ordre_deces().read(),
+            deces_survivant_apres_70_ans: *store.deces_survivant_apres_70_ans().read(),
             dispense_recompense: *store.dispense_recompense().read(),
             ignorer_couts_partage: *store.ignorer_couts_partage().read(),
             ignorer_declaration_succession: *store.ignorer_declaration_succession().read(),
@@ -244,6 +261,9 @@ impl InputState {
         store.donations_partages().set(self.donations_partages);
         store.forfait_mobilier().set(self.forfait_mobilier);
         store.ordre_deces().set(self.ordre_deces);
+        store
+            .deces_survivant_apres_70_ans()
+            .set(self.deces_survivant_apres_70_ans);
         store.dispense_recompense().set(self.dispense_recompense);
         store
             .ignorer_couts_partage()
@@ -318,6 +338,20 @@ impl InputState {
             "ordre_deces",
             if *store.ordre_deces().read() { 1 } else { 0 },
             if def.ordre_deces { 1 } else { 0 },
+        );
+        set_cookie(
+            &mut js,
+            "deces_survivant_apres_70_ans",
+            if *store.deces_survivant_apres_70_ans().read() {
+                1
+            } else {
+                0
+            },
+            if def.deces_survivant_apres_70_ans {
+                1
+            } else {
+                0
+            },
         );
         set_cookie(
             &mut js,
@@ -539,7 +573,7 @@ impl OptionState {
             + self.deuxieme_enfant.flux_financier_avec_av;
         self.cumul_etat = self.premier_etat + self.deuxieme_etat;
         self.cumul_notaire = self.premier_notaire + self.deuxieme_notaire;
-        self.cumul_total = self.cumul_enfant * nb_enfants + self.cumul_etat + self.cumul_notaire;
+        self.cumul_total = self.cumul_enfant * nb_enfants;
     }
 }
 
@@ -631,16 +665,22 @@ impl PremierDeces {
 pub struct ResultState {
     premier_deces_civil: PremierDeces,
     premier_deces_fiscal: PremierDeces,
-    // Valeur AV reçue par le conjoint survivant
+    // Capital de l'AV reçu par le conjoint survivant
     premier_av_survivant: BeneficiaireState,
-    // Valeur AV reçue par chaque enfant au 1er décès
+    // Capital de l'AV reçu par chaque enfant au 1er décès
     premier_av_enfant: BeneficiaireState,
     // Somme des AV reçues par tous les bénéficiaires au 1er décès
     premier_av_total: BeneficiaireState,
-    // Valeur AV reçue par chaque enfant au 2ème décès
+    // Capital du PER reçu par le conjoint survivant au 1er décès (exonéré)
+    premier_per: i32,
+    premier_per_total: i32,
+    // Capital de l'AV reçu par chaque enfant au 2ème décès
     deuxieme_av_enfant: BeneficiaireState,
-    // Somme des AV reçues par tous les bénéficiaires au 2eme décès décès
+    // Somme des AV reçues par tous les bénéficiaires au 2ème décès décès
     deuxieme_av_total: BeneficiaireState,
+    // Capital du PER reçu par chaque enfant au 2ème décès (soumis aux droits de succession après abattement de 30 500 €)
+    deuxieme_per: i32,
+    deuxieme_per_total: i32,
     option_totalite_us: OptionState,
     option_1_4_pp: OptionState,
     option_1_4_pp_3_4_us: OptionState,
@@ -657,9 +697,13 @@ impl ResultState {
             .to(store.premier_av_survivant().into());
         self.premier_av_enfant.to(store.premier_av_enfant().into());
         self.premier_av_total.to(store.premier_av_total().into());
+        store.premier_per().set(self.premier_per);
+        store.premier_per_total().set(self.premier_per_total);
         self.deuxieme_av_enfant
             .to(store.deuxieme_av_enfant().into());
         self.deuxieme_av_total.to(store.deuxieme_av_total().into());
+        store.deuxieme_per().set(self.deuxieme_per);
+        store.deuxieme_per_total().set(self.deuxieme_per_total);
         self.option_totalite_us
             .to(store.option_totalite_us().into());
         self.option_1_4_pp.to(store.option_1_4_pp().into());

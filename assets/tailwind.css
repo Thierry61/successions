@@ -296,15 +296,6 @@
   .w-65\! {
     width: calc(var(--spacing) * 65) !important;
   }
-  .w-66\! {
-    width: calc(var(--spacing) * 66) !important;
-  }
-  .w-70\! {
-    width: calc(var(--spacing) * 70) !important;
-  }
-  .w-75\! {
-    width: calc(var(--spacing) * 75) !important;
-  }
   .w-100 {
     width: calc(var(--spacing) * 100);
   }
