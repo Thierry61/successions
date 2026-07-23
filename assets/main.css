@@ -8,7 +8,7 @@ body {
 
 /* min-width rule is needed to leave room for most right tooltip */
 body {
-    min-width: 650px;
+    min-width: 620px;
 }
 
 /* Remove the spin buttons from number input fields in WebKit and Mozilla browsers */

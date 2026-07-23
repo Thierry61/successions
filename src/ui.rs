@@ -27,7 +27,7 @@ fn Fieldset(
                 div {
                     span { "{legend}" }
                     if !optional.is_empty() {
-                        span { class: "hidden md:inline", " {optional}" }
+                        span { class: "hidden sm:inline", " {optional}" }
                     }
                 }
             }
@@ -94,16 +94,39 @@ enum InputType {
     Age,
     NbEnfants,
     BiensMeublants,
-    ResidencePrincipale,
-    Placements,
+    FacteurBiensMeublants,
 }
 
+// Gestion d'un champ input avec ou sans label.
+// Ce n'est pas l'état (signal) qui est affecté sur la valeur mais un mémo pour permettre
+// un formatage conditionnel de la valeur affichée :
+// - En mode saisie le champ a un backgroud rosé et la valeur n'est pas formatée.
+// - En mode hors saisie il a le background normal du thème et la valeur est formatée
+//   avec des blancs comme séparateurs de milliers.
+// Le basculement de mode est réalisé à l'aide de l'état is_focused.
+// Un autre état (force_refresh) est nécessaire pour gérer l'effacement de la valeur par défaut.
+// TODO: refaire marcher le Ctrl-Z inter-champs perdu depuis l'introduction du formatage.
+// Pour retrouver le Ctrl-Z fonctionnel il faut remettre les attributs d'origine :
+// - r#type: "number", (attention, celui-ci doit être placé juste après les attributs class)
+// - value: signal,
+// (mais on perd alors le formatage)
 #[component]
 fn Input(
     signal: WriteSignal<i32>,
     store: Option<Store<InputState>>,
     input_type: Option<InputType>,
 ) -> Element {
+    // Affichage formaté avec des blancs comme séparateurs de milliers quand l'élement n'est pas sélectionné
+    let mut is_focused = use_signal(|| false);
+    let mut force_refresh = use_signal(|| 0);
+    let signal_str = use_memo(move || {
+        let _ = *force_refresh.read();
+        if *is_focused.read() {
+            (*signal.read()).to_string()
+        } else {
+            format_num(*signal.read())
+        }
+    });
     // Désactive le champ biens meublants quand forfait mobilier est coché
     let disabled = use_memo(move || {
         if input_type == Some(InputType::BiensMeublants) {
@@ -113,8 +136,7 @@ fn Input(
         };
         false
     });
-    // Traitement des événements oninput et onchange. La différence entre les 2
-    // est que le premier ne supprime pas une série de 0 à gauche.
+    // Traitement des événements oninput et onchange.
     let mut manage_input_and_change = move |e: Event<FormData>, is_change: bool| {
         if !e.valid() && !is_change {
             e.prevent_default();
@@ -136,6 +158,9 @@ fn Input(
             } else {
                 i32::default()
             });
+            // Force le rafraichissement du champ formaté quand on efface la valeur par défaut
+            // (sans cela le champ devient vide bien que l'état sous-jacent contienne la valeur par défaut)
+            *force_refresh.write() += 1;
         } else {
             // Le unwrap_or remet la valeur courante si la nouvelle valeur est invalide ou négative
             let unsigned_old_val = signal() as u32;
@@ -149,7 +174,7 @@ fn Input(
         // Puis effectue éventuellement un traitement global inter-champs
         if let Some(store) = store {
             match input_type {
-                Some(InputType::ResidencePrincipale) | Some(InputType::Placements) => {
+                Some(InputType::FacteurBiensMeublants) => {
                     gere_biens_meublants(store, false)
                 }
                 Some(InputType::Age) => {
@@ -166,34 +191,37 @@ fn Input(
             }
         }
     };
-    // Vérifie le champ caractère par caractère
-    let manage_input = move |e: Event<FormData>| {
-        manage_input_and_change(e, false);
-    };
-    // Vérifie le champ à la fin de la saisie
-    let manage_change = move |e: Event<FormData>| {
-        manage_input_and_change(e, true);
-    };
     rsx! {
         input {
             class: "w-17 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm",
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
+            class: if *is_focused.read() { "bg-pink-100 dark:bg-pink-600" },
             class: "remove-arrow",
-            r#type: "number",
             min: if input_type == Some(InputType::NbEnfants) { "1" } else { "0" },
             pattern: "[0-9]+",
             disabled,
-            // Les 2 sont nécessaires pour gérer correctement le double effacement du dernier caractère.
-            oninput: manage_input,
-            onchange: manage_change,
-            value: signal,
+            onfocus: move |_| {
+                is_focused.set(true);
+            },
+            onblur: move |_| {
+                is_focused.set(false);
+            },
+            // Vérifie le champ caractère par caractère
+            oninput: move |e: Event<FormData>| {
+                manage_input_and_change(e, false);
+            },
+            // Vérifie le champ à la fin de la saisie
+            onchange: move |e: Event<FormData>| {
+                manage_input_and_change(e, true);
+            },
+            value: signal_str,
         }
     }
 }
 
 #[component]
 fn Output(signal: ReadSignal<i32>) -> Element {
-    let num = format_num(signal);
+    let num = format_num(*signal.read());
     rsx! {
         input {
             class: "w-18 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-2",
@@ -282,10 +310,10 @@ pub fn MainPart(cookies: String) -> Element {
         // Décommenter la ligne suivante pour debugger les cookies
         // "Cookies: {cookies}"
         // Une forme est nécessaire pour déclencher le calcul en entrant un retour-chariot sur n'importe quel champ.
-        form {
+        form { class: "text-sm",
             div { class: "m-3",
                 details { open: "false",
-                    summary { class: "mt-2 text-sm leading-6 font-semibold select-none",
+                    summary { class: "mt-2 leading-6 font-semibold select-none",
                         "Hypothèses principales :"
                     }
                     ul { class: "ml-5 list-disc list-outside",
@@ -293,7 +321,7 @@ pub fn MainPart(cookies: String) -> Element {
                             "Le couple est marié sous le régime légal (communauté réduite aux acquêts) et a au moins un enfant."
                         }
                         li {
-                            "Tous les éléments sont communs (enfants, biens, dettes et fonds alimentant les placements et les donations)."
+                            "Tous les éléments sont communs (enfants, biens, dettes et fonds ayant alimenté les placements et donations)."
                         }
                         li { "Les versements sur les assurances-vie ont été effectués avant 70 ans." }
                         li {
@@ -305,7 +333,7 @@ pub fn MainPart(cookies: String) -> Element {
                     }
                 }
             }
-            div { id: "inputs", class: "m-2 text-sm flex flex-wrap gap-4",
+            div { id: "inputs", class: "m-2 flex flex-wrap gap-4",
                 InputWithLabel {
                     id: "nb-enfants",
                     lab: "Nombre d'enfants",
@@ -319,7 +347,7 @@ pub fn MainPart(cookies: String) -> Element {
                     tooltip: "Pour abattement de 20% dans le calcul des droits (plan fiscal).",
                     signal: input.residence_principale(),
                     store: Some(input),
-                    input_type: InputType::ResidencePrincipale,
+                    input_type: InputType::FacteurBiensMeublants,
                 }
                 InputWithLabel {
                     id: "placements",
@@ -327,13 +355,15 @@ pub fn MainPart(cookies: String) -> Element {
                     tooltip: "Placements sauf AV et PER qui ont une fiscalité spécifique et une éventuelle récompense à prendre en compte.",
                     signal: input.placements(),
                     store: Some(input),
-                    input_type: InputType::Placements,
+                    input_type: InputType::FacteurBiensMeublants,
                 }
                 InputWithLabel {
                     id: "dettes",
                     lab: "Dettes et impôts",
                     tooltip: "Dettes de la communauté, y compris les impôts restants à payer.",
                     signal: input.dettes(),
+                    store: Some(input),
+                    input_type: InputType::FacteurBiensMeublants,
                 }
                 InputWithLabel {
                     id: "biens-meublants",
@@ -442,7 +472,7 @@ pub fn MainPart(cookies: String) -> Element {
                         Checkbox {
                             id: "ordre-décès",
                             lab: "Ordre des décès : vous puis votre conjoint",
-                            tooltip: "Simulation supposant que vous décédiez avant votre conjoint.",
+                            tooltip: "Si la case est cochée la simulation suppose que vous décédiez avant votre conjoint (le contraire sinon).",
                             signal: input.ordre_deces(),
                         }
                         Checkbox {
@@ -476,10 +506,10 @@ pub fn MainPart(cookies: String) -> Element {
                 Fieldset { legend: "Résultats", optional: "", center: false,
                     div {
                         id: "résultats",
-                        class: "md:px-2 px-0 pb-2 grid grid-cols-7 gap-x-0 md:gap-x-2 gap-y-0",
+                        class: "sm:px-2 px-0 pb-2 grid grid-cols-7 gap-x-0 sm:gap-x-2 gap-y-0",
                         div { class: "mt-3",
                             button {
-                                class: "px-3 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
+                                class: "px-4 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
                                 class: "border border-green-400 dark:border-white rounded-lg drop-shadow-md",
                                 class: "transition duration-200",
                                 class: if animate_click() { "-translate-y-1 scale-110" },
@@ -574,7 +604,7 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div { class: "tooltip-right tooltip",
+                        div { class: "ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option totalité en usufruit choisie par le conjoint survivant."
                             }
@@ -592,7 +622,7 @@ pub fn MainPart(cookies: String) -> Element {
                             Output { signal: result.option_totalite_us().cumul_etat() }
                             Output { signal: result.option_totalite_us().cumul_notaire() }
                         }
-                        div { class: "tooltip-right tooltip",
+                        div { class: "ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété choisie par le conjoint survivant."
                             }
@@ -610,7 +640,7 @@ pub fn MainPart(cookies: String) -> Element {
                             Output { signal: result.option_1_4_pp().cumul_etat() }
                             Output { signal: result.option_1_4_pp().cumul_notaire() }
                         }
-                        div { class: "tooltip-right tooltip",
+                        div { class: "ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété et 3/4 en usufruit choisie par le conjoint survivant."
                             }
@@ -629,7 +659,7 @@ pub fn MainPart(cookies: String) -> Element {
                             Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
                         }
                         // Tooltip top au lieu de right pour éviter une bande blanche en bas
-                        div { class: "tooltip-right tooltip",
+                        div { class: "ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text w-50!",
                                 "Option quotité disponible en pleine propriété choisie par le conjoint survivant."
                             }

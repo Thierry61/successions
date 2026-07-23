@@ -7,7 +7,7 @@ use crate::data::{
 };
 
 // Formate un nombre avec des blancs comme séparateurs de milliers
-pub fn format_num(val: ReadSignal<i32>) -> String {
+pub fn format_num(val: i32) -> String {
     val.to_string()
         .as_bytes()
         .rchunks(3)
@@ -22,7 +22,7 @@ pub fn format_num(val: ReadSignal<i32>) -> String {
 // et inclut le résultat dans un élement li
 #[component]
 fn Euros(val: ReadSignal<i32>, class: Option<&'static str>) -> Element {
-    let num = format_num(val);
+    let num = format_num(*val.read());
     let class = class.unwrap_or_default();
     rsx! {
         li { class: "text-right", class: "{class}",
