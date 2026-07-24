@@ -463,6 +463,15 @@ pub fn Rapport(
                                     "votre conjoint puis vous."
                                 }
                             }
+                            li {
+                                "Décès de l'époux survivant "
+                                if *snapshot.deces_survivant_apres_70_ans().read() {
+                                    "après"
+                                } else {
+                                    "avant"
+                                }
+                                " 70 ans."
+                            }
                         }
                     }
                     div { class: "flex flex-row gap-4",
@@ -480,7 +489,15 @@ pub fn Rapport(
                                 if *snapshot.ignorer_couts_partage().read() {
                                     "ignorés."
                                 } else {
-                                    "pris en compte."
+                                    "comptabilisés."
+                                }
+                            }
+                            li {
+                                "Déclaration de succession "
+                                if *snapshot.ignorer_declaration_succession().read() {
+                                    "ignorée."
+                                } else {
+                                    "comptabilisée."
                                 }
                             }
                         }
