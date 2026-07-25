@@ -69,20 +69,33 @@ fn Checkbox(
 }
 
 // Gestion d'un champ input avec ou sans label.
-// Un overlay est affiché conditionnellement au dessus du champ pour permettre
-// un formatage de la valeur affichée :
+// Un mémo permet le formatage de la valeur affichée :
 // - En mode saisie le champ a un backgroud rosé et la valeur n'est pas formatée.
 // - En mode hors saisie il a le background normal du thème et la valeur est formatée
 //   avec des blancs comme séparateurs de milliers.
 // Le basculement du mode est réalisé à l'aide de l'état is_focused.
-// Nota : Une solution basée sur un mémo marchait aussi mais elle faisait perdre la fonctionnalité
-// du Ctrl-Z inter-champs.
-// TODO : En fait même avec l'overlay il y a un problème : le Ctrl-Z inter-champs ne marche qu'après
-// un hot reload. Je pense que je vais devoir coder ma propre gestion de Undo/Redo.
+// Nota:
+// - Une solution baséee sur un overlay marcherait aussi.
+// - Dans les 2 solutions le Ctrl-Z inter-champs ne marche qu'après un hot reload.
+// TODO: Coder ma propre gestion de Undo/Redo.
 #[component]
-fn Input(signal: WriteSignal<i32>, is_nb_enfants: bool, disabled: Option<Signal<bool>>) -> Element {
+fn Input(
+    id: &'static str,
+    signal: WriteSignal<i32>,
+    is_nb_enfants: bool,
+    disabled: Option<Signal<bool>>,
+) -> Element {
     // Affichage formaté avec des blancs comme séparateurs de milliers quand l'élement n'est pas sélectionné
     let mut is_focused = use_signal(|| false);
+    let mut force_refresh = use_signal(|| 0);
+    let signal_str = use_memo(move || {
+        let _ = *force_refresh.read();
+        if *is_focused.read() {
+            (*signal.read()).to_string()
+        } else {
+            format_num(*signal.read())
+        }
+    });
     // Traitement des événements oninput et onchange.
     let mut manage_input_and_change = move |e: Event<FormData>, is_change: bool| {
         // Récupère la valeur saisie
@@ -122,17 +135,18 @@ fn Input(signal: WriteSignal<i32>, is_nb_enfants: bool, disabled: Option<Signal<
         };
         // TODO: en cas d'implementation spécifique il faut ajouter une entrée dans la pile des undo uniquement en mode change
         *signal.write() = ajusted_val;
+        // Force le rafraichissement du champ formaté (c'est nécessaire parfois)
+        *force_refresh.write() += 1;
     };
     rsx! {
         div { class: "relative inline-block h-5 m-1",
             input {
+                id,
                 class: "w-17 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm",
                 class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
                 class: if *is_focused.read() { "bg-pink-100 dark:bg-pink-600" },
-                // N'affiche pas le texte quand l'overlay est placé au dessus du champ
-                class: if !*is_focused.read() { "text-transparent caret-transparent" },
                 class: "remove-arrow",
-                r#type: "number",
+                r#type: "text",
                 min: if is_nb_enfants { "1" } else { "0" },
                 pattern: "[0-9]+",
                 disabled,
@@ -150,13 +164,7 @@ fn Input(signal: WriteSignal<i32>, is_nb_enfants: bool, disabled: Option<Signal<
                 onchange: move |e: Event<FormData>| {
                     manage_input_and_change(e, true);
                 },
-                value: signal,
-            }
-            // Un overlay affichant la valeur formatée est placé au dessus du champ quand il n'a pas le focus
-            if !*is_focused.read() {
-                span { class: "absolute inset-0 pr-1 text-end pointer-events-none flex items-center justify-end",
-                    "{format_num(*signal.read())}"
-                }
+                value: signal_str,
             }
         }
     }
@@ -186,7 +194,7 @@ fn InputWithLabel(
     disabled: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
-        div { id,
+        div {
             div {
                 class: "w-48 px-2 py-1 flex flex-row justify-between bg-blue-100 dark:bg-blue-600 rounded-lg drop-shadow-md",
                 class: "border border-blue-300 dark:border-blue-800",
@@ -195,6 +203,7 @@ fn InputWithLabel(
                     {lab}
                 }
                 Input {
+                    id,
                     signal,
                     is_nb_enfants: is_nb_enfants == Some(true),
                     disabled,
@@ -207,8 +216,8 @@ fn InputWithLabel(
 #[component]
 fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
     rsx! {
-        div { id,
-            Input { signal, is_nb_enfants: false }
+        div {
+            Input { id, signal, is_nb_enfants: false }
         }
     }
 }

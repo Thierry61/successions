@@ -190,20 +190,11 @@
   }
 }
 @layer utilities {
-  .pointer-events-none {
-    pointer-events: none;
-  }
-  .absolute {
-    position: absolute;
-  }
   .relative {
     position: relative;
   }
   .static {
     position: static;
-  }
-  .inset-0 {
-    inset: calc(var(--spacing) * 0);
   }
   .col-span-1 {
     grid-column: span 1 / span 1;
@@ -377,9 +368,6 @@
   .justify-between {
     justify-content: space-between;
   }
-  .justify-end {
-    justify-content: flex-end;
-  }
   .justify-items-start {
     justify-items: start;
   }
@@ -547,12 +535,6 @@
   }
   .text-red-600 {
     color: var(--color-red-600);
-  }
-  .text-transparent {
-    color: transparent;
-  }
-  .caret-transparent {
-    caret-color: transparent;
   }
   .accent-blue-50 {
     accent-color: var(--color-blue-50);
