@@ -36,35 +36,15 @@ fn Fieldset(
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
-enum CheckboxType {
-    ForfaitMobilier,
-    DecesAvant70Ans,
-}
-
 #[component]
 fn Checkbox(
     id: &'static str,
     lab: &'static str,
     tooltip: &'static str,
     signal: WriteSignal<bool>,
-    store: Option<Store<InputState>>,
-    checkbox_type: Option<CheckboxType>,
+    forfait_mobilier: Option<(Store<InputState>, Signal<bool>)>,
+    disabled: Option<Signal<bool>>,
 ) -> Element {
-    // Désactive le champ décès avant 70 ans quand le survivant est déjà agé de 70 ans
-    let disabled = use_memo(move || {
-        if checkbox_type == Some(CheckboxType::DecesAvant70Ans) {
-            if let Some(store) = store {
-                let age_survivant = if *store.ordre_deces().read() {
-                    *store.age_conjoint().read()
-                } else {
-                    *store.age_vous().read()
-                };
-                return age_survivant >= 70;
-            };
-        };
-        false
-    });
     rsx! {
         div { class: "tooltip-top tooltip",
             span { class: "tooltip-text ml-12!", {tooltip} }
@@ -74,10 +54,9 @@ fn Checkbox(
                 r#type: "checkbox",
                 onclick: move |_| {
                     signal.toggle();
-                    if let Some(store) = store {
-                        if checkbox_type == Some(CheckboxType::ForfaitMobilier) {
-                            // Recalcule le champ biens meublants si forfait mobilier est coché.
-                            gere_biens_meublants(store, true);
+                    if let Some((store, mut forfait_mobilier_left)) = forfait_mobilier {
+                        if !*store.forfait_mobilier().read() {
+                            forfait_mobilier_left.set(true);
                         }
                     }
                 },
@@ -87,14 +66,6 @@ fn Checkbox(
             label { r#for: id, "{lab}" }
         }
     }
-}
-
-#[derive(PartialEq, Clone, Copy)]
-enum InputType {
-    Age,
-    NbEnfants,
-    BiensMeublants,
-    FacteurBiensMeublants,
 }
 
 // Gestion d'un champ input avec ou sans label.
@@ -107,75 +78,50 @@ enum InputType {
 // Nota : Une solution basée sur un mémo marchait aussi mais elle faisait perdre la fonctionnalité
 // du Ctrl-Z inter-champs.
 // TODO : En fait même avec l'overlay il y a un problème : le Ctrl-Z inter-champs ne marche qu'après
-// un hot reload. Je pense que je vais devoir coder ma propore gestion de Undo/Redo.
+// un hot reload. Je pense que je vais devoir coder ma propre gestion de Undo/Redo.
 #[component]
-fn Input(
-    signal: WriteSignal<i32>,
-    store: Option<Store<InputState>>,
-    input_type: Option<InputType>,
-) -> Element {
+fn Input(signal: WriteSignal<i32>, is_nb_enfants: bool, disabled: Option<Signal<bool>>) -> Element {
     // Affichage formaté avec des blancs comme séparateurs de milliers quand l'élement n'est pas sélectionné
     let mut is_focused = use_signal(|| false);
-    // Désactive le champ biens meublants quand forfait mobilier est coché
-    let disabled = use_memo(move || {
-        if input_type == Some(InputType::BiensMeublants) {
-            if let Some(store) = store {
-                return *store.forfait_mobilier().read();
-            };
-        };
-        false
-    });
     // Traitement des événements oninput et onchange.
     let mut manage_input_and_change = move |e: Event<FormData>, is_change: bool| {
-        if !e.valid() && !is_change {
-            e.prevent_default();
-            return;
-        }
         // Récupère la valeur saisie
         let new_val = e.value();
-        // Stocke la nouvelle valeur saisie sauf en mode input si le premier chiffre à gauche vaut 0
-        // pour que l'utilisateur se soit pas supris de voir disparaitre une série de 0 à gauche
-        // alors qu'il voulait juste remplacer le chiffre le plus signicatif (par exemple il voulait
-        // remplacer 30000 par 40000, en effacant le 3 et en tapant 4 à la place).
-        if !is_change && new_val.starts_with('0') {
-            return;
+        if !is_change {
+            if !e.valid() {
+                e.prevent_default();
+                return;
+            }
+            // Stocke la nouvelle valeur saisie sauf en mode input si le premier chiffre à gauche vaut 0
+            // pour que l'utilisateur se soit pas supris de voir disparaitre une série de 0 à gauche
+            // alors qu'il voulait juste remplacer le chiffre le plus signicatif (par exemple il voulait
+            // remplacer 30000 par 40000, en effacant le 3 et en tapant 4 à la place).
+            if new_val.starts_with('0') {
+                return;
+            }
         }
-        // On met la valeur par défaut à la place d'un champ vide en mode onchange
-        if new_val.is_empty() && is_change {
-            signal.set(if input_type == Some(InputType::NbEnfants) {
-                DEFAUT_NB_ENFANTS
-            } else {
-                i32::default()
-            });
+        // Valeur par défaut
+        let def_val = if is_nb_enfants {
+            DEFAUT_NB_ENFANTS
         } else {
-            // Le unwrap_or remet la valeur courante si la nouvelle valeur est invalide ou négative
-            let unsigned_old_val = signal() as u32;
-            let mut unsigned_new_val: u32 = new_val.parse().unwrap_or(unsigned_old_val);
-            // Idem si le nb d'enfants vaut 0
-            if input_type == Some(InputType::NbEnfants) && unsigned_new_val == 0 {
-                unsigned_new_val = unsigned_old_val;
-            }
-            *signal.write() = unsigned_new_val as i32;
-        }
-        // Puis effectue éventuellement un traitement global inter-champs
-        if let Some(store) = store {
-            match input_type {
-                Some(InputType::FacteurBiensMeublants) => {
-                    gere_biens_meublants(store, false)
-                }
-                Some(InputType::Age) => {
-                    let age_survivant = if *store.ordre_deces().read() {
-                        *store.age_conjoint().read()
-                    } else {
-                        *store.age_vous().read()
-                    };
-                    if age_survivant >= 70 {
-                        store.deces_survivant_apres_70_ans().set(true);
-                    }
-                }
-                _ => {}
-            }
-        }
+            i32::default()
+        };
+        // En mode change un champ vide est remplacé par la valeur par défaut
+        // (en mode input le champ étant invalide on est sorti plus haut)
+        let ajusted_val = if new_val.is_empty() {
+            def_val
+        } else {
+            // Si la nouvelle valeur est invalide ou négative alors le unwrap_or met :
+            // - la valeur courante en mode input (si l'utilise frappe un caractère erroné
+            //   alors il ne faut pas que tout le contenu disparaisse pour qu'il puisse effacer ce caractère)
+            // - la valeur par défaut en mode change
+            new_val
+                .parse::<u32>()
+                .unwrap_or_else(|_| if is_change { def_val } else { signal() } as u32)
+                as i32
+        };
+        // TODO: en cas d'implementation spécifique il faut ajouter une entrée dans la pile des undo uniquement en mode change
+        *signal.write() = ajusted_val;
     };
     rsx! {
         div { class: "relative inline-block h-5 m-1",
@@ -187,7 +133,7 @@ fn Input(
                 class: if !*is_focused.read() { "text-transparent caret-transparent" },
                 class: "remove-arrow",
                 r#type: "number",
-                min: if input_type == Some(InputType::NbEnfants) { "1" } else { "0" },
+                min: if is_nb_enfants { "1" } else { "0" },
                 pattern: "[0-9]+",
                 disabled,
                 onfocus: move |_| {
@@ -236,8 +182,8 @@ fn InputWithLabel(
     lab: &'static str,
     tooltip: &'static str,
     signal: WriteSignal<i32>,
-    store: Option<Store<InputState>>,
-    input_type: Option<InputType>,
+    is_nb_enfants: Option<bool>,
+    disabled: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
         div { id,
@@ -248,45 +194,21 @@ fn InputWithLabel(
                     span { class: "tooltip-text", {tooltip} }
                     {lab}
                 }
-                Input { signal, store, input_type }
+                Input {
+                    signal,
+                    is_nb_enfants: is_nb_enfants == Some(true),
+                    disabled,
+                }
             }
         }
     }
 }
 
 #[component]
-fn InputWithoutLabel(
-    id: &'static str,
-    signal: WriteSignal<i32>,
-    store: Option<Store<InputState>>,
-    input_type: Option<InputType>,
-) -> Element {
+fn InputWithoutLabel(id: &'static str, signal: WriteSignal<i32>) -> Element {
     rsx! {
         div { id,
-            Input { signal, store, input_type }
-        }
-    }
-}
-
-// Si forfait mobilier est coché alors on maintient dans biens meublants la valeur 5% de l'actif brut successoral en permanence
-fn gere_biens_meublants(store: Store<InputState>, changement_mode: bool) {
-    let forfait_mobilier = *store.forfait_mobilier().read();
-    if forfait_mobilier {
-        let residence_principale = *store.residence_principale().read();
-        let placements = *store.placements().read();
-        let dettes = *store.dettes().read();
-        store.biens_meublants().set(calcul_biens_meublants(
-            residence_principale,
-            placements,
-            dettes,
-        ));
-    } else {
-        if changement_mode {
-            // Traitement effectué en quittant le mode forfait : doubler les biens meublants
-            // pour garder l'effet l'équivalent (les biens meublants deviennent un actif de communauté
-            // au lieu d'un actif de succession)
-            let biens_meublants = *store.biens_meublants().read();
-            store.biens_meublants().set(2 * biens_meublants);
+            Input { signal, is_nb_enfants: false }
         }
     }
 }
@@ -302,6 +224,57 @@ pub fn MainPart(cookies: String) -> Element {
     let mut animate_click = use_signal(|| false);
     // Affiche le rapport dès qu'un calcul a été lancé
     let mut show_report = use_signal(|| false);
+    // Indique si l'option deces_survivant_apres_70_ans est désactivée
+    let mut deces_survivant_apres_70_ans_disabled = use_signal(|| false);
+    // Indique si le champ biens_meublants est désactivé
+    let mut biens_meublants_disabled = use_signal(|| false);
+    // Indique si l'on vient de sortir du mode forfait mobilier
+    let mut forfait_mobilier_left = use_signal(|| false);
+    // Gére les dépendances inter-champs
+    use_effect(move || {
+        // Si forfait mobilier est coché alors les biens meublants sont maintenus à 5% de l'actif brut successoral
+        let forfait_mobilier = *input.forfait_mobilier().read();
+        if forfait_mobilier {
+            let residence_principale = *input.residence_principale().read();
+            let placements = *input.placements().read();
+            let dettes = *input.dettes().read();
+            input.biens_meublants().set(calcul_biens_meublants(
+                residence_principale,
+                placements,
+                dettes,
+            ));
+        }
+        // Si le conjoint survivant (d'après l'ordre des décès) est déjà agé de plus de 70 ans
+        // alors le flag deces_survivant_apres_70_ans est positionné à true et est rendu non modifiable
+        let age_survivant = if *input.ordre_deces().read() {
+            *input.age_conjoint().read()
+        } else {
+            *input.age_vous().read()
+        };
+        if age_survivant >= 70 {
+            input.deces_survivant_apres_70_ans().set(true);
+            deces_survivant_apres_70_ans_disabled.set(true);
+        } else {
+            deces_survivant_apres_70_ans_disabled.set(false);
+        }
+        // Désactive le champ biens meublants quand forfait mobilier est coché
+        *biens_meublants_disabled.write() = *input.forfait_mobilier().read();
+        // Assure que le couple a au moins un enfant
+        if *input.nb_enfants().read() < 1 {
+            *input.nb_enfants().write() = DEFAUT_NB_ENFANTS;
+        }
+        // Quand on sort du forfait mobilier il faut multiplier les biens meublants par 2
+        // car auparavant ils étaient ajoutés à l'actif successoral et maintenant ils sont
+        // ajoutés à l'actif de communauté. Le but est qu'ils représentent encore la même valeur.
+        if *forfait_mobilier_left.read() {
+            let biens_meublants = *input.biens_meublants().read();
+            input.biens_meublants().set(2 * biens_meublants);
+            // Ceci n'est fait qu'une fois, car il faut pouvoir saisir une autre valeur dans le champ.
+            // Nota: normalement ce n'est pas safe d'affecter une dépendance dans le use effect, mais
+            // dans le cas présent il n'y a pas récursion infinie car la valeur est mise à false.
+            forfait_mobilier_left.set(false);
+        }
+    });
 
     rsx! {
         // Décommenter la ligne suivante pour debugger les cookies
@@ -336,39 +309,32 @@ pub fn MainPart(cookies: String) -> Element {
                     lab: "Nombre d'enfants",
                     tooltip: "Nombre d'enfants communs du couple, doit être supérieur ou égal à 1.",
                     signal: input.nb_enfants(),
-                    input_type: InputType::NbEnfants,
+                    is_nb_enfants: true,
                 }
                 InputWithLabel {
                     id: "RP",
                     lab: "Résidence principale",
                     tooltip: "Pour abattement de 20% dans le calcul des droits (plan fiscal).",
                     signal: input.residence_principale(),
-                    store: Some(input),
-                    input_type: InputType::FacteurBiensMeublants,
                 }
                 InputWithLabel {
                     id: "placements",
                     lab: "Placements hors AV/PER",
                     tooltip: "Placements sauf AV et PER qui ont une fiscalité spécifique et une éventuelle récompense à prendre en compte.",
                     signal: input.placements(),
-                    store: Some(input),
-                    input_type: InputType::FacteurBiensMeublants,
                 }
                 InputWithLabel {
                     id: "dettes",
                     lab: "Dettes et impôts",
                     tooltip: "Dettes de la communauté, y compris les impôts restants à payer.",
                     signal: input.dettes(),
-                    store: Some(input),
-                    input_type: InputType::FacteurBiensMeublants,
                 }
                 InputWithLabel {
                     id: "biens-meublants",
                     lab: "Biens meublants",
                     tooltip: "Intégrés dans l'actif successoral uniquement sur le plan fiscal si forfait mobilier ou sur les 2 plans (fiscal et civil) sinon",
                     signal: input.biens_meublants(),
-                    store: Some(input),
-                    input_type: InputType::BiensMeublants,
+                    disabled: biens_meublants_disabled,
                 }
                 InputWithLabel {
                     id: "frais-funeraires",
@@ -400,18 +366,8 @@ pub fn MainPart(cookies: String) -> Element {
                             }
                             "Ages des époux"
                         }
-                        InputWithoutLabel {
-                            id: "age_vous",
-                            input_type: InputType::Age,
-                            store: input,
-                            signal: input.age_vous(),
-                        }
-                        InputWithoutLabel {
-                            id: "age_conjoint",
-                            input_type: InputType::Age,
-                            store: input,
-                            signal: input.age_conjoint(),
-                        }
+                        InputWithoutLabel { id: "age_vous", signal: input.age_vous() }
+                        InputWithoutLabel { id: "age_conjoint", signal: input.age_conjoint() }
                         div { class: "col-span-2 tooltip-top tooltip",
                             span { class: "tooltip-text w-65!",
                                 "Les prélèvements sociaux sur les plus-values sont à déduire (fonds euros pour l'année courante et UC depuis l'origine)."
@@ -463,13 +419,12 @@ pub fn MainPart(cookies: String) -> Element {
                             lab: "Forfait biens mobiliers",
                             tooltip: "Forfait de 5% de l'actif successoral brut pour les biens meublants.",
                             signal: input.forfait_mobilier(),
-                            store: Some(input),
-                            checkbox_type: CheckboxType::ForfaitMobilier,
+                            forfait_mobilier: Some((input, forfait_mobilier_left)),
                         }
                         Checkbox {
                             id: "ordre-décès",
                             lab: "Ordre des décès : vous puis votre conjoint",
-                            tooltip: "Si la case est cochée la simulation suppose que vous décédiez avant votre conjoint (le contraire sinon).",
+                            tooltip: "Si la case est cochée alors la simulation suppose que vous décédiez avant votre conjoint (le contraire sinon).",
                             signal: input.ordre_deces(),
                         }
                         Checkbox {
@@ -477,8 +432,7 @@ pub fn MainPart(cookies: String) -> Element {
                             lab: "Décès de l'époux survivant après 70 ans.",
                             tooltip: "Détermine la fiscalité du PER du conjoint survivant à son décès.",
                             signal: input.deces_survivant_apres_70_ans(),
-                            store: Some(input),
-                            checkbox_type: CheckboxType::DecesAvant70Ans,
+                            disabled: deces_survivant_apres_70_ans_disabled,
                         }
                         Checkbox {
                             id: "dispense-récompense",

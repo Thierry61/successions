@@ -206,21 +206,6 @@ impl InputState {
                 }
                 _ => continue,
             }
-            // On recalcule les biens meublants si le forfait mobilier est utilisé
-            // (dès fois que le cookie biens meublants soit erroné)
-            if ret.forfait_mobilier {
-                ret.biens_meublants =
-                    calcul_biens_meublants(ret.residence_principale, ret.placements, ret.dettes);
-            }
-            // Idem pour le cas où le cookie relatif au deces avant 70 ans est erroné
-            let age_survivant = if ret.ordre_deces {
-                ret.age_conjoint
-            } else {
-                ret.age_vous
-            };
-            if age_survivant >= 70 {
-                ret.deces_survivant_apres_70_ans = true;
-            }
         }
         ret
     }
