@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 
+use crate::data::history::History;
 use crate::data::{
     calcul_biens_meublants, HeritierStateStoreExt, InputState, InputStateStoreExt,
     OptionStateStoreExt, ResultState, ResultStateStoreExt, DEFAUT_NB_ENFANTS,
@@ -42,7 +43,6 @@ fn Checkbox(
     lab: &'static str,
     tooltip: &'static str,
     signal: WriteSignal<bool>,
-    forfait_mobilier: Option<(Store<InputState>, Signal<bool>)>,
     disabled: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
@@ -53,12 +53,9 @@ fn Checkbox(
                 class: "mx-2 my-1 accent-blue-50 dark:accent-blue-700",
                 r#type: "checkbox",
                 onclick: move |_| {
-                    signal.toggle();
-                    if let Some((store, mut forfait_mobilier_left)) = forfait_mobilier {
-                        if !*store.forfait_mobilier().read() {
-                            forfait_mobilier_left.set(true);
-                        }
-                    }
+                    let new_val = !*signal.read();
+                    // Ecrit le signal et ajoute une entrée dans la pile des undo
+                    use_context::<Store<History>>().write().add_bool(id, signal, new_val);
                 },
                 checked: signal,
                 disabled,
@@ -77,7 +74,7 @@ fn Checkbox(
 // Nota:
 // - Une solution baséee sur un overlay marcherait aussi.
 // - Dans les 2 solutions le Ctrl-Z inter-champs ne marche qu'après un hot reload.
-// TODO: Coder ma propre gestion de Undo/Redo.
+//   Une gestion spécifique des Undo/Redo a donc été codée.
 #[component]
 fn Input(
     id: &'static str,
@@ -96,6 +93,11 @@ fn Input(
             format_num(*signal.read())
         }
     });
+    // Mémorise la valeur d'entrée de champ. C'est nécessaire car le signal est mis à jour
+    // dans le oninput pour rafraichir les dépendances à chaque caractère frappé.
+    let mut old_val = use_signal(|| 0);
+    // Récupère l'historique des undo/redo
+    let mut history = use_context::<Store<History>>();
     // Traitement des événements oninput et onchange.
     let mut manage_input_and_change = move |e: Event<FormData>, is_change: bool| {
         // Récupère la valeur saisie
@@ -133,10 +135,19 @@ fn Input(
                 .unwrap_or_else(|_| if is_change { def_val } else { signal() } as u32)
                 as i32
         };
-        // TODO: en cas d'implementation spécifique il faut ajouter une entrée dans la pile des undo uniquement en mode change
-        *signal.write() = ajusted_val;
-        // Force le rafraichissement du champ formaté (c'est nécessaire parfois)
-        *force_refresh.write() += 1;
+        if is_change {
+            // Ecrit le signal et ajoute une entrée dans la pile des undo
+            history
+                .write()
+                .add_i32(id, signal, *old_val.read(), ajusted_val);
+            // Force le rafraichissement du champ formaté (c'est nécessaire parfois)
+            *force_refresh.write() += 1;
+        } else {
+            // Ecrit le signal mais n'enregistre rien dans la pile des undo. Ces écritures
+            // intermédiaires dans le oniput permettent de rafraichir les dépendances
+            // en direct au cours de la saisie.
+            *signal.write() = ajusted_val;
+        }
     };
     rsx! {
         div { class: "relative inline-block h-5 m-1",
@@ -151,6 +162,7 @@ fn Input(
                 pattern: "[0-9]+",
                 disabled,
                 onfocus: move |_| {
+                    *old_val.write() = *signal.read();
                     is_focused.set(true);
                 },
                 onblur: move |_| {
@@ -237,8 +249,8 @@ pub fn MainPart(cookies: String) -> Element {
     let mut deces_survivant_apres_70_ans_disabled = use_signal(|| false);
     // Indique si le champ biens_meublants est désactivé
     let mut biens_meublants_disabled = use_signal(|| false);
-    // Indique si l'on vient de sortir du mode forfait mobilier
-    let mut forfait_mobilier_left = use_signal(|| false);
+    // Mémorise la valeur précédente du forfait mobilier, le but est détecter quand on sort de ce mode
+    let mut forfait_mobilier_previous = use_signal(|| false);
     // Gére les dépendances inter-champs
     use_effect(move || {
         // Si forfait mobilier est coché alors les biens meublants sont maintenus à 5% de l'actif brut successoral
@@ -275,21 +287,48 @@ pub fn MainPart(cookies: String) -> Element {
         // Quand on sort du forfait mobilier il faut multiplier les biens meublants par 2
         // car auparavant ils étaient ajoutés à l'actif successoral et maintenant ils sont
         // ajoutés à l'actif de communauté. Le but est qu'ils représentent encore la même valeur.
-        if *forfait_mobilier_left.read() {
+        let cur_forfait_mobilier = *input.forfait_mobilier().read();
+        let prev_forfait_mobilier = *forfait_mobilier_previous.read();
+        if prev_forfait_mobilier && !cur_forfait_mobilier {
             let biens_meublants = *input.biens_meublants().read();
             input.biens_meublants().set(2 * biens_meublants);
-            // Ceci n'est fait qu'une fois, car il faut pouvoir saisir une autre valeur dans le champ.
-            // Nota: normalement ce n'est pas safe d'affecter une dépendance dans le use effect, mais
-            // dans le cas présent il n'y a pas récursion infinie car la valeur est mise à false.
-            forfait_mobilier_left.set(false);
+        }
+        // Le champ biens meublants n'est mis à jour qu'au moment de la transition, car il faut
+        // pouvoir ensuite saisir d'autres valeurs dans ce champ.
+        // Nota: normalement ce n'est pas safe d'affecter une dépendance dans le use effect, mais
+        // dans le cas présent il n'y a pas récursion infinie car la valeur du flag précédent est
+        // remise à false.
+        if prev_forfait_mobilier != cur_forfait_mobilier {
+            forfait_mobilier_previous.set(cur_forfait_mobilier);
         }
     });
+    // Historique des Undo/Redo
+    let mut history = use_store(History::new);
+    // Context provider pour éviter de passer l'historique en paramètre à chaque composant
+    use_context_provider(|| history);
 
     rsx! {
         // Décommenter la ligne suivante pour debugger les cookies
         // "Cookies: {cookies}"
         // Une forme est nécessaire pour déclencher le calcul en entrant un retour-chariot sur n'importe quel champ.
-        form { class: "text-sm",
+        form {
+            class: "text-sm",
+            // TODO: même si cet évenement est géré au niveau de la forme il faut que le focus soit sur un input
+            onkeydown: move |e: Event<KeyboardData>| {
+                if e.modifiers().ctrl() {
+                    match e.key() {
+                        Key::Character(ref s) if s == "z" => {
+                            e.prevent_default();
+                            history.write().undo();
+                        }
+                        Key::Character(ref s) if s == "y" => {
+                            e.prevent_default();
+                            history.write().redo();
+                        }
+                        _ => {}
+                    }
+                }
+            },
             div { class: "m-3",
                 details { open: "false",
                     summary { class: "mt-2 leading-6 font-semibold select-none",
@@ -428,7 +467,6 @@ pub fn MainPart(cookies: String) -> Element {
                             lab: "Forfait biens mobiliers",
                             tooltip: "Forfait de 5% de l'actif successoral brut pour les biens meublants.",
                             signal: input.forfait_mobilier(),
-                            forfait_mobilier: Some((input, forfait_mobilier_left)),
                         }
                         Checkbox {
                             id: "ordre-décès",

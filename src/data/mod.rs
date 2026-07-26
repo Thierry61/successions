@@ -3,6 +3,8 @@ use dioxus::prelude::*;
 mod compute;
 use crate::data::compute::compute;
 
+pub(crate) mod history;
+
 pub const FORFAIT_FRAIS_FUNERAIRES: i32 = 1500;
 pub const REMISE_RP_FISCALE: f64 = 0.2;
 pub const DEFAUT_NB_ENFANTS: i32 = 2;
