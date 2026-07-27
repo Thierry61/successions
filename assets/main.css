@@ -87,6 +87,17 @@ body {
     right: 100%; /* To the left of the tooltip */
     border-color: transparent #888 transparent transparent;
 }
+/* Specifics properties for bottom tooltip */
+.tooltip-bottom.tooltip .tooltip-text {
+    left: 5px;
+    top: calc(110% + 5px);
+}
+/* Specific properties for top arrow of bottom tooltip */
+.tooltip-bottom.tooltip .tooltip-text::after {
+    bottom: 100%;
+    left: 15px;
+    border-color: transparent transparent #888 transparent;
+}
 /*
   Show the tooltip text when you mouse over the tooltip container.
   Tooltips are applicable on element with tooltip class

@@ -56,6 +56,11 @@ fn Checkbox(
                     let new_val = !*signal.read();
                     // Ecrit le signal et ajoute une entrée dans la pile des undo
                     use_context::<Store<History>>().write().add_bool(id, signal, new_val);
+                    // TODO: lorsqu'on sort du forfait mobilier il faudrait créer un nouveau type
+                    // d'entrée dans la pile des undo combinant la valeur du checkbox et la valeur
+                    // du champ biens meublants car dans l'état actuel le undo double la valeur de
+                    // ce champ au lieu de remettre la valeur d'origine.
+                    // (mais ce n'est pas prioritaire)
                 },
                 checked: signal,
                 disabled,
@@ -332,7 +337,7 @@ pub fn MainPart(cookies: String) -> Element {
             div { class: "m-3",
                 details { open: "false",
                     summary { class: "mt-2 leading-6 font-semibold select-none",
-                        "Hypothèses principales :"
+                        "Hypothèses principales (cliquer pour développer)"
                     }
                     ul { class: "ml-5 list-disc list-outside",
                         li {

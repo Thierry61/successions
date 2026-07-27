@@ -6,6 +6,10 @@ use crate::data::{
     ResultStateStoreExt,
 };
 
+// TODO:
+// - afficher le total net de départ (actif net de communauté + part du survivant hors successions)
+// - comparer avec un tableau récapitulatif des options avec total enfants, total état, total notaire, total général
+
 // Formate un nombre avec des blancs comme séparateurs de milliers
 pub fn format_num(val: i32) -> String {
     val.to_string()

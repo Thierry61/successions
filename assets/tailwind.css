@@ -295,6 +295,12 @@
   .w-35\! {
     width: calc(var(--spacing) * 35) !important;
   }
+  .w-37\! {
+    width: calc(var(--spacing) * 37) !important;
+  }
+  .w-40\! {
+    width: calc(var(--spacing) * 40) !important;
+  }
   .w-48 {
     width: calc(var(--spacing) * 48);
   }
@@ -370,6 +376,9 @@
   }
   .justify-items-start {
     justify-items: start;
+  }
+  .gap-1 {
+    gap: calc(var(--spacing) * 1);
   }
   .gap-2 {
     gap: calc(var(--spacing) * 2);
