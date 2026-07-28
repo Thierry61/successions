@@ -1,0 +1,23 @@
+# Version avec les valeurs par défaut des paramètres de https://github.com/DioxusLabs/deploy-action
+# passées de manière explicite
+
+name: GitHub Pages
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Dioxus Deploy
+        uses: DioxusLabs/deploy-action@0.1.2
+        with:
+          buildMode: release
+          toolchain: stable
+          outDirectory: dist
+          rootPath: .
