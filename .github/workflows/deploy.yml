@@ -1,6 +1,14 @@
 # Version avec les valeurs par défaut des paramètres de https://github.com/DioxusLabs/deploy-action
 # passées de manière explicite
 
+# En fait l'action définie par Dioxus ne marche pas (plante sur la compilation de dioxus-cle),
+# j'ai donc utilisé celle de https://github.com/uthea/dioxus-deploy-action (la différence est
+# que dioxus-cli est installé par cargo install dioxus-cli --locked)
+# Mais il faut enlever outDirectory pour la faire marcher.
+
+# Mais en fait je n'ai pas réussi à la faire non plus, j'ai donc défini ma propre action
+# sur https://github.com/Thierry61/deploy-action
+
 name: GitHub Pages
 
 on:
@@ -15,7 +23,7 @@ jobs:
 
     steps:
       - name: Dioxus Deploy
-        uses: DioxusLabs/deploy-action@0.1.2
+        uses: Thierry61/deploy-action@1.0
         with:
           buildMode: release
           toolchain: stable
