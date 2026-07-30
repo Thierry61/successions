@@ -545,6 +545,9 @@
   .text-red-600 {
     color: var(--color-red-600);
   }
+  .underline {
+    text-decoration-line: underline;
+  }
   .accent-blue-50 {
     accent-color: var(--color-blue-50);
   }

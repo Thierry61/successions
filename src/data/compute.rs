@@ -17,6 +17,17 @@ use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState}
 // - les récompenses gérées sont dues à la communauté et sont donc inscrites à l'actif de la communauté
 // - en parallèle elles sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
 
+// Gestion des biens meublants en cas de forfait mobilier:
+// Par définition le forfait mobilier représente 5% de l'actif brut successoral.
+// Mais comme il s'ajoute à l'actif net successoral cela signifie qu'il existe
+// de manière symétrique le même montant de biens meublants revenant au conjoint
+// survivant hors succession. Cette moitié de biens meublants reviendra aux
+// héritier du survivant. Pour simplifier le codage le double des biens meublants
+// est ajouté à l'actif de communauté dans ce cas là.
+// TODO: considérer qu'en cas de forfait mobilier les 5% s'appliquent sur le plan fiscal
+// et que le champ biens meublants s'appliquent sur plan civil.
+// (cf. https://www.avocat-camus.com/index-fiche-63352.html)
+
 // Calcul au niveau des structures sous-jacentes (par opposition aux wrappers de type store)
 // - distribution des AV aux bénéficiaires et calcul des récompenses associées
 // - liquiditation de la communauté
@@ -113,23 +124,29 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         None,
     );
 
-    // Actif brut de communauté : RP + placements hors AV/PER + biens meublants si le forfait mobilier n'est pas utilisé.
+    // Actif brut de communauté : RP + placements hors AV/PER.
     // (au civil et au fiscal, avec un remise de 20% sur la RP au fiscal)
     result.premier_deces_civil.actif_brut_communaute =
         input.residence_principale + input.placements;
     result.premier_deces_fiscal.actif_brut_communaute =
         (input.residence_principale as f64 * (1.0 - REMISE_RP_FISCALE)) as i32 + input.placements;
-    if !input.forfait_mobilier {
-        result.premier_deces_civil.actif_brut_communaute += input.biens_meublants;
-        result.premier_deces_fiscal.actif_brut_communaute += input.biens_meublants;
-    }
+
+    // Biens meublants
+    // (au civil et au fiscal)
+    let biens_meublants = if input.forfait_mobilier {
+        2 * input.biens_meublants
+    } else {
+        input.biens_meublants
+    };
+    result.premier_deces_civil.biens_meublants = biens_meublants;
+    result.premier_deces_fiscal.biens_meublants = biens_meublants;
 
     // Actif brut de communauté : actif net de communauté - dettes
     // (au civil et au fiscal)
     result.premier_deces_civil.actif_net_communaute =
-        result.premier_deces_civil.actif_brut_communaute - input.dettes;
+        result.premier_deces_civil.actif_brut_communaute + biens_meublants - input.dettes;
     result.premier_deces_fiscal.actif_net_communaute =
-        result.premier_deces_fiscal.actif_brut_communaute - input.dettes;
+        result.premier_deces_fiscal.actif_brut_communaute + biens_meublants - input.dettes;
 
     // Soldes de récompenses : récompenses dues à la communauté (on ne gère pas de récompenses dues par la communauté)
     // (au civil et au fiscal)
@@ -158,23 +175,15 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         result.premier_deces_fiscal.actif_net_communaute_ajuste / 2
             - result.premier_deces_fiscal.recompense_due_par_le_defunt;
 
-    // Actif net successoral (= succession) : Actif brut successoral + biens meublants - frais funéraires
-    // - au civil :
-    //    - frais funéraires réels
-    //    - pas de biens meublants (soit déjà compté dans l'actif de communauté, soit répartition amiable)
-    // - au fiscal :
-    //    - forfait plafond de 1500 € pour les frais funéraires limité par les frais réels (mettre les frais
+    // Actif net successoral (= succession) : Actif brut successoral - frais funéraires
+    // - au civil : frais funéraires réels
+    // - au fiscal : forfait plafond de 1500 € pour les frais funéraires limité par les frais réels (mettre les frais
     //      funéraires réels à 0 permet donc une simulation simplifiée avec les 2 frais funéraires à 0)
-    //    - biens meublants de 5% de l'actif brut de communauté si forfait mobilier utilisé
     result.premier_deces_civil.actif_net_succession =
         result.premier_deces_civil.actif_brut_succession - input.frais_funeraires;
     result.premier_deces_fiscal.actif_net_succession =
         result.premier_deces_fiscal.actif_brut_succession
             - cmp::min(input.frais_funeraires, FORFAIT_FRAIS_FUNERAIRES);
-    if input.forfait_mobilier {
-        // input.biens_meublants contient le forfait calculé dans l'UI
-        result.premier_deces_fiscal.actif_net_succession += input.biens_meublants;
-    }
 
     // Un actif net fiscal négatif est remis à 0 (pour éviter des impôts négatifs)
     result.premier_deces_fiscal.actif_net_succession =
@@ -186,7 +195,7 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         result.premier_deces_civil.actif_net_communaute_ajuste / 2
             - result.premier_deces_civil.recompense_due_par_le_survivant;
 
-    // Total à répartir : actif net de succession + part du survivant hors successions + AV + PER + double des biens meublants si forfait mobilier
+    // Total à répartir : actif net de succession + part du survivant hors successions + AV + PER
     result.total_a_repartir = result.premier_deces_civil.part_survivant_hors_succession
         + result.premier_deces_civil.actif_net_succession
         + input.av_vous_conjoint
@@ -194,12 +203,7 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         + input.av_vous_enfants
         + input.av_conjoint_enfants
         + input.per_vous_conjoint
-        + input.per_conjoint_conjoint
-        + if input.forfait_mobilier {
-            2 * input.biens_meublants
-        } else {
-            0
-        };
+        + input.per_conjoint_conjoint;
 
     // On fait une copie de cette structure car la fonction calcul_option va en modifier un sous-ensemble
     // mais elle a besoin de lire le reste et la structure ne peut pas être empruntée à la fois en lecture et en écriture.
@@ -358,28 +362,9 @@ fn calcul_option(
     // Calcul du 2ème décès
     // --------------------
 
-    // En cas d'utilisation du forfait mobilier les biens meublants ont été comptabilisés au fiscal
-    // dans l'actif net de succession du 1er décès, mais ils n'ont pas été intégrés au civil.
-    // Ils manquent donc dans l'extinction d'usufruit et dans la part civile du 2ème décès.
-    // Les biens meublants sont ajoutés à l'actif de succession quand la case forfait mobilier est cochée
-    // et à l'actif de communauté quand elle ne l'est pas. Les biens meublants du forfait mobilier représentent
-    // donc le double de la valeur hors forfait et il faut les dédoubler dans le cadre du forfait :
-    // - une 1ère instance représente la succession répartie en US et PP pour le survivant (dans les 2 formules)
-    // - une 2ème instance représente la part hors succession du survivant (le coefficient 1.0 dans la 2ème formule)
-    let (biens_meublants_us, biens_meublants_pp) = if input.forfait_mobilier {
-        (
-            (fractionnement.us_survivant * input.biens_meublants as f64) as i32,
-            ((fractionnement.pp_survivant + 1.0) * input.biens_meublants as f64) as i32,
-        )
-    } else {
-        (0, 0)
-    };
-
     // Extinction d'usufruit : US/NP enfin reçus par les enfants et déjà taxés au 1er décès
-    // + partie des biens meublants en US dans le cadre du forfait mobilier
-    option.deuxieme_total.extinction_us = option.premier_survivant.heritage_us
-        + input.nb_enfants * option.premier_enfant.heritage_np
-        + biens_meublants_us;
+    option.deuxieme_total.extinction_us =
+        option.premier_survivant.heritage_us + input.nb_enfants * option.premier_enfant.heritage_np;
 
     // Droits et émouluments payés par le survivant (qu'il faut retrancher de sa part en PP pour déterminer
     // ce que les enfants recevront au deuxième décès)
@@ -388,13 +373,11 @@ fn calcul_option(
 
     // Part civile:
     // La part du survivant hors succession + sa part en PP dans la succession - frais qu'il a payés + les capitaux de l'AV et du PER reçus du conjoint
-    // + partie des biens meublants en PP dans le cadre du forfait mobilier
     option.deuxieme_total.part_civile = result.premier_deces_civil.part_survivant_hors_succession
         + option.premier_survivant.heritage_pp
         - frais_survivant
         + result.premier_av_survivant.net
-        + result.premier_per
-        + biens_meublants_pp;
+        + result.premier_per;
 
     // PER propre du survivant.
     // Le capital est transmis directement aux enfants, mais s'il décède après 70 ans

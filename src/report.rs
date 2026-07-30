@@ -387,7 +387,10 @@ pub fn Rapport(
             class: "text-gray-900 dark:text-white",
             class: if show_report() { " block" } else { "hidden" },
             open: "false",
-            summary { class: "m-2 text-sm leading-6 font-semibold select-none", "Détails du calcul :" }
+            summary { class: "m-2 text-sm leading-6 font-bold select-none",
+                span { class: "underline", "Détails du calcul" }
+                " :"
+            }
             div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
                 h1 { class: "font-bold", "Données d'entrée :" }
                 div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
@@ -511,6 +514,7 @@ pub fn Rapport(
                         ul { class: "ml-5 list-disc list-outside",
                             li { class: "list-none text-right opacity-0", "Plan : " }
                             li { "Actif brut de communauté :" }
+                            li { "Biens meublants :" }
                             li { "Actif net de communauté :" }
                             li { "Récompense due par le survivant :" }
                             li { "Récompense due par le défunt :" }
@@ -523,6 +527,7 @@ pub fn Rapport(
                         ul {
                             li { class: "text-center", "Civil" }
                             Euros { val: result.premier_deces_civil().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_civil().biens_meublants() }
                             Euros { val: result.premier_deces_civil().actif_net_communaute() }
                             Euros { val: result.premier_deces_civil().recompense_due_par_le_survivant() }
                             Euros { val: result.premier_deces_civil().recompense_due_par_le_defunt() }
@@ -535,6 +540,7 @@ pub fn Rapport(
                         ul {
                             li { class: "text-center", "Fiscal" }
                             Euros { val: result.premier_deces_fiscal().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_fiscal().biens_meublants() }
                             Euros { val: result.premier_deces_fiscal().actif_net_communaute() }
                             Euros { val: result.premier_deces_fiscal().recompense_due_par_le_survivant() }
                             Euros { val: result.premier_deces_fiscal().recompense_due_par_le_defunt() }
@@ -608,26 +614,30 @@ pub fn Rapport(
                 }
             }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option totalité en usufruit :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option totalité en usufruit" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_totalite_us() }
             }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option 1/4 en pleine propriété :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option 1/4 en pleine propriété" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_1_4_pp() }
             }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option 1/4 en pleine propriété - 3/4 en usufruit :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option 1/4 en pleine propriété - 3/4 en usufruit" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_1_4_pp_3_4_us() }
             }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option quotité disponible en pleine propriété :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option quotité disponible en pleine propriété" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_qd_pp() }
             }

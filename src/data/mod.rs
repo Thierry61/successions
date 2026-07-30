@@ -618,6 +618,7 @@ pub struct PremierDeces {
     recompense_due_par_le_survivant: i32,
     recompense_due_par_le_defunt: i32,
     actif_brut_communaute: i32,
+    biens_meublants: i32,
     solde_recompenses: i32,
     actif_net_communaute: i32,
     actif_net_communaute_ajuste: i32,
@@ -636,6 +637,7 @@ impl PremierDeces {
         store
             .actif_brut_communaute()
             .set(self.actif_brut_communaute);
+        store.biens_meublants().set(self.biens_meublants);
         store.solde_recompenses().set(self.solde_recompenses);
         store.actif_net_communaute().set(self.actif_net_communaute);
         store
