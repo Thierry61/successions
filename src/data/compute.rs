@@ -186,6 +186,21 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         result.premier_deces_civil.actif_net_communaute_ajuste / 2
             - result.premier_deces_civil.recompense_due_par_le_survivant;
 
+    // Total à répartir : actif net de succession + part du survivant hors successions + AV + PER + double des biens meublants si forfait mobilier
+    result.total_a_repartir = result.premier_deces_civil.part_survivant_hors_succession
+        + result.premier_deces_civil.actif_net_succession
+        + input.av_vous_conjoint
+        + input.av_conjoint_conjoint
+        + input.av_vous_enfants
+        + input.av_conjoint_enfants
+        + input.per_vous_conjoint
+        + input.per_conjoint_conjoint
+        + if input.forfait_mobilier {
+            2 * input.biens_meublants
+        } else {
+            0
+        };
+
     // On fait une copie de cette structure car la fonction calcul_option va en modifier un sous-ensemble
     // mais elle a besoin de lire le reste et la structure ne peut pas être empruntée à la fois en lecture et en écriture.
     let photo_result = result.clone();
@@ -366,11 +381,17 @@ fn calcul_option(
         + input.nb_enfants * option.premier_enfant.heritage_np
         + biens_meublants_us;
 
+    // Droits et émouluments payés par le survivant (qu'il faut retrancher de sa part en PP pour déterminer
+    // ce que les enfants recevront au deuxième décès)
+    let frais_survivant =
+        option.premier_survivant.part_civile - option.premier_survivant.heritage_net;
+
     // Part civile:
-    // La part du survivant hors succession + sa part en PP dans la succession + les capitaux de l'AV et du PER reçus du conjoint
+    // La part du survivant hors succession + sa part en PP dans la succession - frais qu'il a payés + les capitaux de l'AV et du PER reçus du conjoint
     // + partie des biens meublants en PP dans le cadre du forfait mobilier
     option.deuxieme_total.part_civile = result.premier_deces_civil.part_survivant_hors_succession
         + option.premier_survivant.heritage_pp
+        - frais_survivant
         + result.premier_av_survivant.net
         + result.premier_per
         + biens_meublants_pp;

@@ -6,10 +6,6 @@ use crate::data::{
     ResultStateStoreExt,
 };
 
-// TODO:
-// - afficher le total net de départ (actif net de communauté + part du survivant hors successions)
-// - comparer avec un tableau récapitulatif des options avec total enfants, total état, total notaire, total général
-
 // Formate un nombre avec des blancs comme séparateurs de milliers
 pub fn format_num(val: i32) -> String {
     val.to_string()
@@ -371,7 +367,7 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         HilightCredit {
                             Euros { val: option.deuxieme_total().flux_financier() }
                             Euros { val: option.deuxieme_total().flux_financier_avec_av() }
-                            Euros { val: option.cumul_total() }
+                            Euros { val: option.cumul_enfants() }
                         }
                     }
                 }
@@ -588,6 +584,27 @@ pub fn Rapport(
                     enfant_ou_survivant: result.deuxieme_per(),
                     affiche_survivant: false,
                     total: result.deuxieme_per_total(),
+                }
+            }
+            div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+                h1 { class: "font-bold", "Vérification des totaux :" }
+                ul {
+                    li { class: "flex flex-row gap-6",
+                        ul { class: "ml-5 list-disc list-outside",
+                            li { "Actifs à l'origine :" }
+                            li { "Option 100% US :" }
+                            li { "Option 1/4 PP :" }
+                            li { "Option 1/4 PP - 3/4 US :" }
+                            li { "Option QD PP :" }
+                        }
+                        ul {
+                            Euros { val: result.total_a_repartir() }
+                            Euros { val: result.option_totalite_us().cumul_total() }
+                            Euros { val: result.option_1_4_pp().cumul_total() }
+                            Euros { val: result.option_1_4_pp_3_4_us().cumul_total() }
+                            Euros { val: result.option_qd_pp().cumul_total() }
+                        }
+                    }
                 }
             }
             details { class: "p-2", open: "false",

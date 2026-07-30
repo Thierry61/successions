@@ -523,6 +523,7 @@ pub struct OptionState {
     cumul_enfant: i32,
     cumul_etat: i32,
     cumul_notaire: i32,
+    cumul_enfants: i32,
     cumul_total: i32,
 }
 impl OptionState {
@@ -552,6 +553,7 @@ impl OptionState {
         store.cumul_enfant().set(self.cumul_enfant);
         store.cumul_etat().set(self.cumul_etat);
         store.cumul_notaire().set(self.cumul_notaire);
+        store.cumul_enfants().set(self.cumul_enfants);
         store.cumul_total().set(self.cumul_total);
     }
     // Calcul des cumuls (pour éviter de créer des use_memo dans l'UI)
@@ -560,7 +562,8 @@ impl OptionState {
             + self.deuxieme_enfant.flux_financier_avec_av;
         self.cumul_etat = self.premier_etat + self.deuxieme_etat;
         self.cumul_notaire = self.premier_notaire + self.deuxieme_notaire;
-        self.cumul_total = self.cumul_enfant * nb_enfants;
+        self.cumul_enfants = self.cumul_enfant * nb_enfants;
+        self.cumul_total = self.cumul_enfants + self.cumul_etat + self.cumul_notaire;
     }
 }
 
@@ -661,6 +664,8 @@ pub struct ResultState {
     // Capital du PER reçu par le conjoint survivant au 1er décès (exonéré)
     premier_per: i32,
     premier_per_total: i32,
+    // Total à répartir lors des 2 décès (entre les enfants, l'Etat et le notaire)
+    total_a_repartir: i32,
     // Capital de l'AV reçu par chaque enfant au 2ème décès
     deuxieme_av_enfant: BeneficiaireState,
     // Somme des AV reçues par tous les bénéficiaires au 2ème décès décès
@@ -686,6 +691,7 @@ impl ResultState {
         self.premier_av_total.to(store.premier_av_total().into());
         store.premier_per().set(self.premier_per);
         store.premier_per_total().set(self.premier_per_total);
+        store.total_a_repartir().set(self.total_a_repartir);
         self.deuxieme_av_enfant
             .to(store.deuxieme_av_enfant().into());
         self.deuxieme_av_total.to(store.deuxieme_av_total().into());
