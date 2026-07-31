@@ -41,7 +41,7 @@ fn Fieldset(
 fn Checkbox(
     id: &'static str,
     lab: &'static str,
-    tooltip: &'static str,
+    tooltip: ReadSignal<String>,
     signal: WriteSignal<bool>,
     disabled: Option<Signal<bool>>,
 ) -> Element {
@@ -56,11 +56,6 @@ fn Checkbox(
                     let new_val = !*signal.read();
                     // Ecrit le signal et ajoute une entrée dans la pile des undo
                     use_context::<Store<History>>().write().add_bool(id, signal, new_val);
-                    // TODO: lorsqu'on sort du forfait mobilier il faudrait créer un nouveau type
-                    // d'entrée dans la pile des undo combinant la valeur du checkbox et la valeur
-                    // du champ biens meublants car dans l'état actuel le undo double la valeur de
-                    // ce champ au lieu de remettre la valeur d'origine.
-                    // (mais ce n'est pas prioritaire)
                 },
                 checked: signal,
                 disabled,
@@ -208,7 +203,6 @@ fn InputWithLabel(
     tooltip: &'static str,
     signal: WriteSignal<i32>,
     is_nb_enfants: Option<bool>,
-    disabled: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
         div {
@@ -223,7 +217,6 @@ fn InputWithLabel(
                     id,
                     signal,
                     is_nb_enfants: is_nb_enfants == Some(true),
-                    disabled,
                 }
             }
         }
@@ -252,24 +245,17 @@ pub fn MainPart(cookies: String) -> Element {
     let mut show_report = use_signal(|| false);
     // Indique si l'option deces_survivant_apres_70_ans est désactivée
     let mut deces_survivant_apres_70_ans_disabled = use_signal(|| false);
-    // Indique si le champ biens_meublants est désactivé
-    let mut biens_meublants_disabled = use_signal(|| false);
-    // Mémorise la valeur précédente du forfait mobilier, le but est détecter quand on sort de ce mode
-    let mut forfait_mobilier_previous = use_signal(|| false);
+    // Tooltip du forfait mobilier fiscal
+    let mut tooltip_forfait_mobilier = use_signal(String::new);
     // Gére les dépendances inter-champs
     use_effect(move || {
-        // Si forfait mobilier est coché alors les biens meublants sont maintenus à 5% de l'actif brut successoral
-        let forfait_mobilier = *input.forfait_mobilier().read();
-        if forfait_mobilier {
-            let residence_principale = *input.residence_principale().read();
-            let placements = *input.placements().read();
-            let dettes = *input.dettes().read();
-            input.biens_meublants().set(calcul_biens_meublants(
-                residence_principale,
-                placements,
-                dettes,
-            ));
-        }
+        // Calcul du forfait mobilier fiscal (formaté et affiché dans le tooltip)
+        let residence_principale = *input.residence_principale().read();
+        let placements = *input.placements().read();
+        let dettes = *input.dettes().read();
+        let forfait_mobilier = calcul_biens_meublants(residence_principale, placements, dettes);
+        let forfait_mobilier = format_num(forfait_mobilier);
+        tooltip_forfait_mobilier.set(format!("Forfait de 5% de l'actif successoral brut pour les biens meublants sur le plan fiscal (soit {forfait_mobilier} €)."));
         // Si le conjoint survivant (d'après l'ordre des décès) est déjà agé de plus de 70 ans
         // alors le flag deces_survivant_apres_70_ans est positionné à true et est rendu non modifiable
         let age_survivant = if *input.ordre_deces().read() {
@@ -282,29 +268,6 @@ pub fn MainPart(cookies: String) -> Element {
             deces_survivant_apres_70_ans_disabled.set(true);
         } else {
             deces_survivant_apres_70_ans_disabled.set(false);
-        }
-        // Désactive le champ biens meublants quand forfait mobilier est coché
-        *biens_meublants_disabled.write() = *input.forfait_mobilier().read();
-        // Assure que le couple a au moins un enfant
-        if *input.nb_enfants().read() < 1 {
-            *input.nb_enfants().write() = DEFAUT_NB_ENFANTS;
-        }
-        // Quand on sort du forfait mobilier il faut multiplier les biens meublants par 2
-        // car auparavant ils étaient ajoutés à l'actif successoral et maintenant ils sont
-        // ajoutés à l'actif de communauté. Le but est qu'ils représentent encore la même valeur.
-        let cur_forfait_mobilier = *input.forfait_mobilier().read();
-        let prev_forfait_mobilier = *forfait_mobilier_previous.read();
-        if prev_forfait_mobilier && !cur_forfait_mobilier {
-            let biens_meublants = *input.biens_meublants().read();
-            input.biens_meublants().set(2 * biens_meublants);
-        }
-        // Le champ biens meublants n'est mis à jour qu'au moment de la transition, car il faut
-        // pouvoir ensuite saisir d'autres valeurs dans ce champ.
-        // Nota: normalement ce n'est pas safe d'affecter une dépendance dans le use effect, mais
-        // dans le cas présent il n'y a pas récursion infinie car la valeur du flag précédent est
-        // remise à false.
-        if prev_forfait_mobilier != cur_forfait_mobilier {
-            forfait_mobilier_previous.set(cur_forfait_mobilier);
         }
     });
     // Historique des Undo/Redo
@@ -385,9 +348,8 @@ pub fn MainPart(cookies: String) -> Element {
                 InputWithLabel {
                     id: "biens-meublants",
                     lab: "Biens meublants",
-                    tooltip: "Intégrés dans l'actif successoral uniquement sur le plan fiscal si forfait mobilier ou sur les 2 plans (fiscal et civil) sinon",
+                    tooltip: "Intégrés dans l'actif de communauté uniquement sur le plan civil si forfait mobilier ou sur les 2 plans (fiscal et civil) sinon",
                     signal: input.biens_meublants(),
-                    disabled: biens_meublants_disabled,
                 }
                 InputWithLabel {
                     id: "frais-funeraires",
@@ -470,7 +432,7 @@ pub fn MainPart(cookies: String) -> Element {
                         Checkbox {
                             id: "forfait-mobilier",
                             lab: "Forfait biens mobiliers",
-                            tooltip: "Forfait de 5% de l'actif successoral brut pour les biens meublants.",
+                            tooltip: tooltip_forfait_mobilier,
                             signal: input.forfait_mobilier(),
                         }
                         Checkbox {

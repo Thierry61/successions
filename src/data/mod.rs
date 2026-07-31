@@ -623,6 +623,8 @@ pub struct PremierDeces {
     actif_net_communaute: i32,
     actif_net_communaute_ajuste: i32,
     actif_brut_succession: i32,
+    // Valeur du forfait mobilier ajouté à l'actif net de succession sur le plan fiscal uniquement
+    forfait_mobilier: i32,
     actif_net_succession: i32,
     part_survivant_hors_succession: i32,
 }
@@ -646,6 +648,7 @@ impl PremierDeces {
         store
             .actif_brut_succession()
             .set(self.actif_brut_succession);
+        store.forfait_mobilier().set(self.forfait_mobilier);
         store.actif_net_succession().set(self.actif_net_succession);
         store
             .part_survivant_hors_succession()

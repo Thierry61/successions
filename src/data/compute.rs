@@ -1,8 +1,8 @@
 use std::cmp;
 
 use crate::data::{
-    BeneficiaireState, HeritierState, ABATTEMENT_AV, ABATTEMENT_DROITS, ABATTEMENT_PER,
-    FORFAIT_FRAIS_FUNERAIRES, REMISE_RP_FISCALE,
+    calcul_biens_meublants, BeneficiaireState, HeritierState, ABATTEMENT_AV, ABATTEMENT_DROITS,
+    ABATTEMENT_PER, FORFAIT_FRAIS_FUNERAIRES, REMISE_RP_FISCALE,
 };
 use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState};
 
@@ -17,16 +17,19 @@ use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState}
 // - les récompenses gérées sont dues à la communauté et sont donc inscrites à l'actif de la communauté
 // - en parallèle elles sont inscrites au passif d'un propre (soit du survivant, soit du défunt)
 
-// Gestion des biens meublants en cas de forfait mobilier:
-// Par définition le forfait mobilier représente 5% de l'actif brut successoral.
-// Mais comme il s'ajoute à l'actif net successoral cela signifie qu'il existe
+// Gestion des biens meublants en cas de forfait mobilier :
+// Ils sont indépendants du forfait mobilier qui représente 5% de l'actif brut successoral
+// (cf. https://www.avocat-camus.com/index-fiche-63352.html).
+// Pour obtenir les mêmes résultats que le simulateur MACSF il faut mettre dans
+// le champ biens meublants le double du forfait mobilier. Ce dernier est visible :
+// - dans le tooltip de la case à cocher "Forfait biens mobiliers"
+// - après calcul dans le rapport à la ligne "Forfait mobilier", colonne "Fiscal"
+// Leur principe est sans doute le suivant :
+// Comme le forfait mobilier s'ajoute à l'actif successoral cela signifie qu'il existe
 // de manière symétrique le même montant de biens meublants revenant au conjoint
-// survivant hors succession. Cette moitié de biens meublants reviendra aux
-// héritier du survivant. Pour simplifier le codage le double des biens meublants
-// est ajouté à l'actif de communauté dans ce cas là.
-// TODO: considérer qu'en cas de forfait mobilier les 5% s'appliquent sur le plan fiscal
-// et que le champ biens meublants s'appliquent sur plan civil.
-// (cf. https://www.avocat-camus.com/index-fiche-63352.html)
+// survivant hors succession. Cette moitié de biens meublants reviendra en final aux
+// héritier du survivant. Le résultat est donc le même que si le double du forfait mobilier
+// est ajouté en tant que biens meublants à l'actif de communauté.
 
 // Calcul au niveau des structures sous-jacentes (par opposition aux wrappers de type store)
 // - distribution des AV aux bénéficiaires et calcul des récompenses associées
@@ -132,21 +135,24 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         (input.residence_principale as f64 * (1.0 - REMISE_RP_FISCALE)) as i32 + input.placements;
 
     // Biens meublants
-    // (au civil et au fiscal)
-    let biens_meublants = if input.forfait_mobilier {
-        2 * input.biens_meublants
-    } else {
+    // (au civil et éventuellement au fiscal s'il n'y a pas de forfait mobilier)
+    result.premier_deces_civil.biens_meublants = input.biens_meublants;
+    result.premier_deces_fiscal.biens_meublants = if !input.forfait_mobilier {
         input.biens_meublants
+    } else {
+        0
     };
-    result.premier_deces_civil.biens_meublants = biens_meublants;
-    result.premier_deces_fiscal.biens_meublants = biens_meublants;
 
-    // Actif brut de communauté : actif net de communauté - dettes
+    // Actif brut de communauté : actif net de communauté + biens meublants - dettes
     // (au civil et au fiscal)
     result.premier_deces_civil.actif_net_communaute =
-        result.premier_deces_civil.actif_brut_communaute + biens_meublants - input.dettes;
+        result.premier_deces_civil.actif_brut_communaute
+            + result.premier_deces_civil.biens_meublants
+            - input.dettes;
     result.premier_deces_fiscal.actif_net_communaute =
-        result.premier_deces_fiscal.actif_brut_communaute + biens_meublants - input.dettes;
+        result.premier_deces_fiscal.actif_brut_communaute
+            + result.premier_deces_fiscal.biens_meublants
+            - input.dettes;
 
     // Soldes de récompenses : récompenses dues à la communauté (on ne gère pas de récompenses dues par la communauté)
     // (au civil et au fiscal)
@@ -175,14 +181,23 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         result.premier_deces_fiscal.actif_net_communaute_ajuste / 2
             - result.premier_deces_fiscal.recompense_due_par_le_defunt;
 
-    // Actif net successoral (= succession) : Actif brut successoral - frais funéraires
+    // Forfait mobilier
+    // (éventuellement au fiscal s'il y a un forfait mobilier)
+    result.premier_deces_fiscal.forfait_mobilier = if input.forfait_mobilier {
+        calcul_biens_meublants(input.residence_principale, input.placements, input.dettes)
+    } else {
+        0
+    };
+
+    // Actif net successoral (= succession) : Actif brut successoral + forfait mobilier au fiscal - frais funéraires
     // - au civil : frais funéraires réels
     // - au fiscal : forfait plafond de 1500 € pour les frais funéraires limité par les frais réels (mettre les frais
-    //      funéraires réels à 0 permet donc une simulation simplifiée avec les 2 frais funéraires à 0)
+    //   funéraires réels à 0 permet donc une simulation simplifiée avec les 2 frais funéraires à 0)
     result.premier_deces_civil.actif_net_succession =
         result.premier_deces_civil.actif_brut_succession - input.frais_funeraires;
     result.premier_deces_fiscal.actif_net_succession =
         result.premier_deces_fiscal.actif_brut_succession
+            + result.premier_deces_fiscal.forfait_mobilier
             - cmp::min(input.frais_funeraires, FORFAIT_FRAIS_FUNERAIRES);
 
     // Un actif net fiscal négatif est remis à 0 (pour éviter des impôts négatifs)

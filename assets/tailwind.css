@@ -190,6 +190,9 @@
   }
 }
 @layer utilities {
+  .visible {
+    visibility: visible;
+  }
   .relative {
     position: relative;
   }

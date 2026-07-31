@@ -521,6 +521,7 @@ pub fn Rapport(
                             li { "Solde de récompenses :" }
                             li { "Actif net de communauté après récompenses :" }
                             li { "Actif brut de succession :" }
+                            li { "Forfait mobilier :" }
                             li { "Actif net de succession :" }
                             li { "Part du survivant hors succession :" }
                         }
@@ -534,6 +535,7 @@ pub fn Rapport(
                             Euros { val: result.premier_deces_civil().solde_recompenses() }
                             Euros { val: result.premier_deces_civil().actif_net_communaute_ajuste() }
                             Euros { val: result.premier_deces_civil().actif_brut_succession() }
+                            Euros { val: result.premier_deces_civil().forfait_mobilier() }
                             Euros { val: result.premier_deces_civil().actif_net_succession() }
                             Euros { val: result.premier_deces_civil().part_survivant_hors_succession() }
                         }
@@ -547,6 +549,7 @@ pub fn Rapport(
                             Euros { val: result.premier_deces_fiscal().solde_recompenses() }
                             Euros { val: result.premier_deces_fiscal().actif_net_communaute_ajuste() }
                             Euros { val: result.premier_deces_fiscal().actif_brut_succession() }
+                            Euros { val: result.premier_deces_fiscal().forfait_mobilier() }
                             Euros { val: result.premier_deces_fiscal().actif_net_succession() }
                             Euros { val: result.premier_deces_fiscal().part_survivant_hors_succession() }
                         }
