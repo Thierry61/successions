@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 
-mod compute;
+// Nota: tous les champs ont été rendus publics pour les tests d'intégration
+
+pub mod compute;
 use crate::data::compute::compute;
 
 pub(crate) mod history;
@@ -11,6 +13,9 @@ pub const DEFAUT_NB_ENFANTS: i32 = 2;
 pub const ABATTEMENT_AV: i32 = 152_500;
 pub const ABATTEMENT_DROITS: i32 = 100_000;
 pub const ABATTEMENT_PER: i32 = 30_500;
+
+// Précision à 5 € du fait de l'usage d'entiers au lieu de flottants
+pub const EPSILON: i32 = 5;
 
 // Crée un cookie ou le détruit si la valeur est la valeur par défaut de l'entrée
 // (plus exactement ajoute dans la variable js l'instruction javascript effectuant cette action)
@@ -56,27 +61,27 @@ fn test_calcul_biens_meublants() {
 
 #[derive(Store, Default)]
 pub struct InputState {
-    nb_enfants: i32,
-    dettes: i32,
-    residence_principale: i32,
-    placements: i32,
-    biens_meublants: i32,
-    frais_funeraires: i32,
-    donations_partages: i32,
-    forfait_mobilier: bool,
-    ordre_deces: bool,
-    deces_survivant_apres_70_ans: bool,
-    dispense_recompense: bool,
-    ignorer_couts_partage: bool,
-    ignorer_declaration_succession: bool,
-    age_vous: i32,
-    age_conjoint: i32,
-    av_vous_conjoint: i32,
-    av_conjoint_conjoint: i32,
-    av_vous_enfants: i32,
-    av_conjoint_enfants: i32,
-    per_vous_conjoint: i32,
-    per_conjoint_conjoint: i32,
+    pub nb_enfants: i32,
+    pub dettes: i32,
+    pub residence_principale: i32,
+    pub placements: i32,
+    pub biens_meublants: i32,
+    pub frais_funeraires: i32,
+    pub donations_partages: i32,
+    pub forfait_mobilier: bool,
+    pub ordre_deces: bool,
+    pub deces_survivant_apres_70_ans: bool,
+    pub dispense_recompense: bool,
+    pub ignorer_couts_partage: bool,
+    pub ignorer_declaration_succession: bool,
+    pub age_vous: i32,
+    pub age_conjoint: i32,
+    pub av_vous_conjoint: i32,
+    pub av_conjoint_conjoint: i32,
+    pub av_vous_enfants: i32,
+    pub av_conjoint_enfants: i32,
+    pub per_vous_conjoint: i32,
+    pub per_conjoint_conjoint: i32,
 }
 impl InputState {
     // Génère une structure avec les valeurs par défaut
@@ -436,11 +441,11 @@ fn test_new_from_cookies() {
 // Bénéficiaire d'une assurance-vie
 #[derive(Store, Default, Clone)]
 pub struct BeneficiaireState {
-    brut: i32,
-    abattement: i32,
-    taxable: i32,
-    prelevement: i32,
-    net: i32,
+    pub brut: i32,
+    pub abattement: i32,
+    pub taxable: i32,
+    pub prelevement: i32,
+    pub net: i32,
 }
 impl BeneficiaireState {
     // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
@@ -458,23 +463,23 @@ impl BeneficiaireState {
 #[derive(Store, Default, Clone)]
 pub struct HeritierState {
     // Champs pour le 1er décès
-    heritage_pp: i32,
-    heritage_np: i32,
-    heritage_us: i32,
+    pub heritage_pp: i32,
+    pub heritage_np: i32,
+    pub heritage_us: i32,
     // Champ pour le 2ème décès
-    extinction_us: i32,
+    pub extinction_us: i32,
     // Champs communs aux 2 décès
-    part_civile: i32,
-    part_fiscale: i32,
-    abattement: i32,
-    taxable: i32,
-    droits_succession: i32,
-    droits_partage: i32,
-    emoluments_partage: i32,
-    emoluments_declaration_succession: i32,
-    heritage_net: i32,
-    flux_financier: i32,
-    flux_financier_avec_av: i32,
+    pub part_civile: i32,
+    pub part_fiscale: i32,
+    pub abattement: i32,
+    pub taxable: i32,
+    pub droits_succession: i32,
+    pub droits_partage: i32,
+    pub emoluments_partage: i32,
+    pub emoluments_declaration_succession: i32,
+    pub heritage_net: i32,
+    pub flux_financier: i32,
+    pub flux_financier_avec_av: i32,
 }
 impl HeritierState {
     // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
@@ -506,25 +511,25 @@ impl HeritierState {
 #[derive(Store, Default, Clone)]
 pub struct OptionState {
     // Données du premier décès
-    premier_survivant: HeritierState,
-    premier_enfant: HeritierState,
-    premier_total: HeritierState,
-    premier_etat: i32,
-    premier_notaire: i32,
+    pub premier_survivant: HeritierState,
+    pub premier_enfant: HeritierState,
+    pub premier_total: HeritierState,
+    pub premier_etat: i32,
+    pub premier_notaire: i32,
     // Données du deuxième décès
-    deuxieme_us_survivant: i32,
-    deuxieme_pp_survivant: i32,
-    deuxieme_actif_net_succession_civil: i32,
-    deuxieme_actif_net_succession_fiscal: i32,
-    deuxieme_enfant: HeritierState,
-    deuxieme_total: HeritierState,
-    deuxieme_etat: i32,
-    deuxieme_notaire: i32,
-    cumul_enfant: i32,
-    cumul_etat: i32,
-    cumul_notaire: i32,
-    cumul_enfants: i32,
-    cumul_total: i32,
+    pub deuxieme_us_survivant: i32,
+    pub deuxieme_pp_survivant: i32,
+    pub deuxieme_actif_net_succession_civil: i32,
+    pub deuxieme_actif_net_succession_fiscal: i32,
+    pub deuxieme_enfant: HeritierState,
+    pub deuxieme_total: HeritierState,
+    pub deuxieme_etat: i32,
+    pub deuxieme_notaire: i32,
+    pub cumul_enfant: i32,
+    pub cumul_etat: i32,
+    pub cumul_notaire: i32,
+    pub cumul_enfants: i32,
+    pub cumul_total: i32,
 }
 impl OptionState {
     // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
@@ -615,18 +620,18 @@ impl FractionnementPropriete {
 
 #[derive(Store, Default, Clone)]
 pub struct PremierDeces {
-    recompense_due_par_le_survivant: i32,
-    recompense_due_par_le_defunt: i32,
-    actif_brut_communaute: i32,
-    biens_meublants: i32,
-    solde_recompenses: i32,
-    actif_net_communaute: i32,
-    actif_net_communaute_ajuste: i32,
-    actif_brut_succession: i32,
+    pub recompense_due_par_le_survivant: i32,
+    pub recompense_due_par_le_defunt: i32,
+    pub actif_brut_communaute: i32,
+    pub biens_meublants: i32,
+    pub solde_recompenses: i32,
+    pub actif_net_communaute: i32,
+    pub actif_net_communaute_ajuste: i32,
+    pub actif_brut_succession: i32,
     // Valeur du forfait mobilier ajouté à l'actif net de succession sur le plan fiscal uniquement
-    forfait_mobilier: i32,
-    actif_net_succession: i32,
-    part_survivant_hors_succession: i32,
+    pub forfait_mobilier: i32,
+    pub actif_net_succession: i32,
+    pub part_survivant_hors_succession: i32,
 }
 impl PremierDeces {
     pub fn to(&self, store: Store<PremierDeces>) {
@@ -656,32 +661,51 @@ impl PremierDeces {
     }
 }
 
+// Vérification que le total de chaque option correspond aux actifs de départ
+#[derive(Store, Default, Clone, Debug, PartialEq)]
+pub struct CheckState {
+    pub option_totalite_us: bool,
+    pub option_1_4_pp: bool,
+    pub option_1_4_pp_3_4_us: bool,
+    pub option_qd_pp: bool,
+}
+impl CheckState {
+    // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
+    pub fn to(&self, store: Store<CheckState>) {
+        store.option_totalite_us().set(self.option_totalite_us);
+        store.option_1_4_pp().set(self.option_1_4_pp);
+        store.option_1_4_pp_3_4_us().set(self.option_1_4_pp_3_4_us);
+        store.option_qd_pp().set(self.option_qd_pp);
+    }
+}
+
 #[derive(Store, Default, Clone)]
 pub struct ResultState {
-    premier_deces_civil: PremierDeces,
-    premier_deces_fiscal: PremierDeces,
+    pub premier_deces_civil: PremierDeces,
+    pub premier_deces_fiscal: PremierDeces,
     // Capital de l'AV reçu par le conjoint survivant
-    premier_av_survivant: BeneficiaireState,
+    pub premier_av_survivant: BeneficiaireState,
     // Capital de l'AV reçu par chaque enfant au 1er décès
-    premier_av_enfant: BeneficiaireState,
+    pub premier_av_enfant: BeneficiaireState,
     // Somme des AV reçues par tous les bénéficiaires au 1er décès
-    premier_av_total: BeneficiaireState,
+    pub premier_av_total: BeneficiaireState,
     // Capital du PER reçu par le conjoint survivant au 1er décès (exonéré)
-    premier_per: i32,
-    premier_per_total: i32,
+    pub premier_per: i32,
+    pub premier_per_total: i32,
     // Total à répartir lors des 2 décès (entre les enfants, l'Etat et le notaire)
-    total_a_repartir: i32,
+    pub total_a_repartir: i32,
     // Capital de l'AV reçu par chaque enfant au 2ème décès
-    deuxieme_av_enfant: BeneficiaireState,
+    pub deuxieme_av_enfant: BeneficiaireState,
     // Somme des AV reçues par tous les bénéficiaires au 2ème décès décès
-    deuxieme_av_total: BeneficiaireState,
+    pub deuxieme_av_total: BeneficiaireState,
     // Capital du PER reçu par chaque enfant au 2ème décès (soumis aux droits de succession après abattement de 30 500 €)
-    deuxieme_per: i32,
-    deuxieme_per_total: i32,
-    option_totalite_us: OptionState,
-    option_1_4_pp: OptionState,
-    option_1_4_pp_3_4_us: OptionState,
-    option_qd_pp: OptionState,
+    pub deuxieme_per: i32,
+    pub deuxieme_per_total: i32,
+    pub option_totalite_us: OptionState,
+    pub option_1_4_pp: OptionState,
+    pub option_1_4_pp_3_4_us: OptionState,
+    pub option_qd_pp: OptionState,
+    pub check: CheckState,
 }
 impl ResultState {
     // Fonction codée en dur pour réinitialiser le store à partir de la structure sous-jacente
@@ -708,6 +732,7 @@ impl ResultState {
         self.option_1_4_pp_3_4_us
             .to(store.option_1_4_pp_3_4_us().into());
         self.option_qd_pp.to(store.option_qd_pp().into());
+        self.check.to(store.check().into());
     }
     // Wrapper du calcul au niveaux des store
     pub fn store_compute(
@@ -726,7 +751,7 @@ impl ResultState {
         let input = InputState::from(store_input);
 
         // Calcul des résultats
-        compute(input, &mut result);
+        compute(&input, &mut result);
 
         // Surcharge du store des résultats
         result.to(store_result);

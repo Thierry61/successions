@@ -2,7 +2,7 @@ use std::cmp;
 
 use crate::data::{
     calcul_biens_meublants, BeneficiaireState, HeritierState, ABATTEMENT_AV, ABATTEMENT_DROITS,
-    ABATTEMENT_PER, FORFAIT_FRAIS_FUNERAIRES, REMISE_RP_FISCALE,
+    ABATTEMENT_PER, EPSILON, FORFAIT_FRAIS_FUNERAIRES, REMISE_RP_FISCALE,
 };
 use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState};
 
@@ -36,7 +36,7 @@ use crate::data::{FractionnementPropriete, InputState, OptionState, ResultState}
 // - liquiditation de la communauté
 // - calcul de la succession et de la part du conjoint survivant hors succession
 // - répartition de la succession pour chacune des 4 options possibles
-pub fn compute(input: InputState, result: &mut ResultState) {
+pub fn compute(input: &InputState, result: &mut ResultState) {
     // Récupération des AV et PER détenus en propre par le conjoint survivant
     let (av, per) = if input.ordre_deces {
         // Le survivant est votre conjoint
@@ -54,8 +54,11 @@ pub fn compute(input: InputState, result: &mut ResultState) {
 
     // Si le conjoint survivant possède des AV alors il les conserve mais il doit une récompense à la communauté.
     // (au civil uniquement)
-    result.premier_deces_civil.recompense_due_par_le_survivant = av;
-    result.premier_deces_civil.solde_recompenses += av;
+    #[cfg(not(feature = "no_compensation"))]
+    {
+        result.premier_deces_civil.recompense_due_par_le_survivant = av;
+        result.premier_deces_civil.solde_recompenses += av;
+    }
 
     // Si le conjoint survivant possède un PER alors il le conserve sans devoir de récompense.
     // Le capital sera transmis aux enfants au 2ème décès. Si le survivant décède avant 70 ans
@@ -87,6 +90,7 @@ pub fn compute(input: InputState, result: &mut ResultState) {
         // Votre conjoint est le défunt
         input.av_conjoint_enfants
     };
+    #[cfg(not(feature = "no_compensation"))]
     if !input.dispense_recompense {
         result.premier_deces_civil.recompense_due_par_le_defunt = av;
         result.premier_deces_civil.solde_recompenses += av;
@@ -156,12 +160,15 @@ pub fn compute(input: InputState, result: &mut ResultState) {
 
     // Soldes de récompenses : récompenses dues à la communauté (on ne gère pas de récompenses dues par la communauté)
     // (au civil et au fiscal)
-    result.premier_deces_civil.solde_recompenses =
-        result.premier_deces_civil.recompense_due_par_le_survivant
-            + result.premier_deces_civil.recompense_due_par_le_defunt;
-    result.premier_deces_fiscal.solde_recompenses =
-        result.premier_deces_fiscal.recompense_due_par_le_survivant
-            + result.premier_deces_fiscal.recompense_due_par_le_defunt;
+    #[cfg(not(feature = "no_compensation"))]
+    {
+        result.premier_deces_civil.solde_recompenses =
+            result.premier_deces_civil.recompense_due_par_le_survivant
+                + result.premier_deces_civil.recompense_due_par_le_defunt;
+        result.premier_deces_fiscal.solde_recompenses =
+            result.premier_deces_fiscal.recompense_due_par_le_survivant
+                + result.premier_deces_fiscal.recompense_due_par_le_defunt;
+    }
 
     // Actif net de communauté ajusté : actif net de communauté + solde de récompenses.
     // (au civil et au fiscal)
@@ -227,25 +234,25 @@ pub fn compute(input: InputState, result: &mut ResultState) {
     calcul_option(
         &mut result.option_totalite_us,
         FractionnementPropriete::new_totalite_us(),
-        &input,
+        input,
         &photo_result,
     );
     calcul_option(
         &mut result.option_1_4_pp,
         FractionnementPropriete::new_1_4_pp(),
-        &input,
+        input,
         &photo_result,
     );
     calcul_option(
         &mut result.option_1_4_pp_3_4_us,
         FractionnementPropriete::new_1_4_pp_3_4_us(),
-        &input,
+        input,
         &photo_result,
     );
     calcul_option(
         &mut result.option_qd_pp,
         FractionnementPropriete::new_qd_pp(input.nb_enfants),
-        &input,
+        input,
         &photo_result,
     );
 
@@ -254,6 +261,16 @@ pub fn compute(input: InputState, result: &mut ResultState) {
     result.option_1_4_pp.cumul(input.nb_enfants);
     result.option_1_4_pp_3_4_us.cumul(input.nb_enfants);
     result.option_qd_pp.cumul(input.nb_enfants);
+
+    // Vérification que le total de chaque option correspond aux actifs de départ
+    result.check.option_totalite_us =
+        i32::abs(result.option_totalite_us.cumul_total - result.total_a_repartir) < EPSILON;
+    result.check.option_1_4_pp =
+        i32::abs(result.option_1_4_pp.cumul_total - result.total_a_repartir) < EPSILON;
+    result.check.option_1_4_pp_3_4_us =
+        i32::abs(result.option_1_4_pp_3_4_us.cumul_total - result.total_a_repartir) < EPSILON;
+    result.check.option_qd_pp =
+        i32::abs(result.option_qd_pp.cumul_total - result.total_a_repartir) < EPSILON;
 }
 
 // Calcul du coefficient définissant la quote part de chaque héritier dans les émoluments de déclaration de succession
