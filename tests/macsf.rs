@@ -5,7 +5,7 @@ mod common;
 use common::CHECKED;
 use successions::data::{compute::compute, InputState, ResultState, EPSILON};
 
-// Pour retrouver les résultats MACSF il faut cocher la case
+// Pour retrouver les résultats sur MACSF il faut cocher la case
 // "Abattement sur la résidence principale au 1er décès"
 #[test]
 fn test_residence_principale() {
@@ -119,7 +119,9 @@ fn test_frais_funeraires() {
 }
 
 // C'est un peu analogue : On retrouve les résultats sur MACSF sauf avec les options avec de l'US.
-// La différence apparait encore sur le calcul des droits au 2ème décès.
+// La différence apparait encore sur le calcul des droits au 2ème décès mais vaut ici des milliers d'euros.
+// L'erreur est probablement du côté de MACSF car ce dernier ne trouve pas les mêmes résultats avec
+// les dettes directement soustraites des placements.
 #[test]
 fn test_dettes() {
     let input = InputState {

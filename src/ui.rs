@@ -1,11 +1,46 @@
 use dioxus::prelude::*;
+use dioxus_icons::lucide::{Check, X};
 
 use crate::data::history::History;
 use crate::data::{
-    calcul_biens_meublants, HeritierStateStoreExt, InputState, InputStateStoreExt,
-    OptionStateStoreExt, ResultState, ResultStateStoreExt, DEFAUT_NB_ENFANTS,
+    calcul_biens_meublants, CheckStateStoreExt, HeritierStateStoreExt, InputState,
+    InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt, DEFAUT_NB_ENFANTS,
 };
 use crate::report::{format_num, Rapport};
+
+// Croix en rouge
+#[component]
+fn RedX() -> Element {
+    rsx! {
+        div { class: "pt-1 pl-3 text-red-600 dark:text-red-400",
+            X { class: "size-5", stroke_width: 3 }
+        }
+    }
+}
+
+// Check mark en vert
+#[component]
+fn GreenCheck() -> Element {
+    rsx! {
+        div { class: "pt-1 pl-3 text-green-600 dark:text-green-400",
+            Check { class: "size-5", stroke_width: 3 }
+        }
+    }
+}
+
+// Vérification du total distribué dans une option
+#[component]
+fn CheckOption(show_report: ReadSignal<bool>, is_ok: ReadSignal<bool>) -> Element {
+    rsx! {
+        if !*show_report.read() {
+            div {}
+        } else if *is_ok.read() {
+            GreenCheck {}
+        } else {
+            RedX {}
+        }
+    }
+}
 
 // Gestion d'un fieldset:
 // - la légende peut être centrée ou alignée à gauche
@@ -468,11 +503,15 @@ pub fn MainPart(cookies: String) -> Element {
                         }
                     }
                 }
+                // Avant l'ajout de la colonne Vérif il y avait 7 colonnes décomposées en 1 + 2 + 1 + 3.
+                // Cette nouvelle colonne est moitié plus petite que les autres et a donc une taille
+                // approximative de 1/7/2. Tout a été multiplié par 7 et après tatonnement la meilleure
+                // décomposition semble être : 49 = 7 + 13 + 7 + 22.
                 Fieldset { legend: "Résultats", optional: "", center: false,
                     div {
                         id: "résultats",
-                        class: "sm:px-2 px-0 pb-2 grid grid-cols-7 gap-x-0 sm:gap-x-2 gap-y-0",
-                        div { class: "mt-3",
+                        class: "sm:px-2 px-0 pb-2 grid grid-cols-49 gap-x-0 sm:gap-x-2 gap-y-0",
+                        div { class: "col-span-7 mt-3",
                             button {
                                 class: "px-4 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
                                 class: "border border-green-400 dark:border-white rounded-lg drop-shadow-md",
@@ -502,7 +541,7 @@ pub fn MainPart(cookies: String) -> Element {
                                 "Calculer"
                             }
                         }
-                        div { class: "col-span-2",
+                        div { class: "col-span-13",
                             Fieldset {
                                 legend: "1er décès",
                                 optional: "",
@@ -527,7 +566,7 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div {
+                        div { class: "col-span-7",
                             Fieldset {
                                 legend: "2ème",
                                 optional: "décès",
@@ -542,13 +581,13 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div { class: "col-span-3",
+                        div { class: "col-span-22",
                             Fieldset {
                                 legend: "Cumul des 2 décès",
                                 optional: "",
                                 center: true,
-                                div { class: "pl-2 grid grid-cols-3 items-end",
-                                    div { class: "tooltip tooltip-top",
+                                div { class: "pl-2 grid grid-cols-7 items-end",
+                                    div { class: "tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text w-65!",
                                             "Valeur reçue en pleine-propriété par chaque enfant, incluant les assurances-vie dont il est bénéficiaire."
                                         }
@@ -556,91 +595,139 @@ pub fn MainPart(cookies: String) -> Element {
                                         br {}
                                         "enfant"
                                     }
-                                    div { class: "pl-1 tooltip tooltip-top",
+                                    div { class: "pl-1 tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text", "Impôts perçus par l'Etat." }
                                         "Etat"
                                     }
-                                    div { class: "pl-2 tooltip tooltip-top",
+                                    div { class: "pl-2 tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text w-35!",
                                             "Emoluments perçus par le notaire."
                                         }
                                         "Notaire"
                                     }
+                                    div { class: "pl-2 tooltip tooltip-top",
+                                        span { class: "tooltip-text w-45!",
+                                            "Vérification que le total distribué aux enfants, à l'Etat et au notaire est égal à l'actif net de départ."
+                                        }
+                                        "Vérif."
+                                        br {}
+                                        "total"
+                                    }
                                 }
                             }
                         }
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option totalité en usufruit choisie par le conjoint survivant."
                             }
                             "100% US"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_totalite_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_totalite_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_totalite_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_totalite_us().cumul_enfant() }
-                            Output { signal: result.option_totalite_us().cumul_etat() }
-                            Output { signal: result.option_totalite_us().cumul_notaire() }
+                        div { class: "col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_totalite_us().cumul_enfant() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_totalite_us().cumul_etat() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_totalite_us().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_totalite_us(),
+                            }
                         }
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété choisie par le conjoint survivant."
                             }
                             "¼ PP"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_1_4_pp().cumul_enfant() }
-                            Output { signal: result.option_1_4_pp().cumul_etat() }
-                            Output { signal: result.option_1_4_pp().cumul_notaire() }
+                        div { class: "col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp().cumul_enfant() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp().cumul_etat() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_1_4_pp(),
+                            }
                         }
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété et 3/4 en usufruit choisie par le conjoint survivant."
                             }
                             "¼ PP ¾ US"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp_3_4_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp_3_4_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp_3_4_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_1_4_pp_3_4_us().cumul_enfant() }
-                            Output { signal: result.option_1_4_pp_3_4_us().cumul_etat() }
-                            Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
+                        div { class: "col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp_3_4_us().cumul_enfant() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp_3_4_us().cumul_etat() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_1_4_pp_3_4_us(),
+                            }
                         }
                         // Tooltip top au lieu de right pour éviter une bande blanche en bas
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text w-50!",
                                 "Option quotité disponible en pleine propriété choisie par le conjoint survivant."
                             }
                             "QD PP"
                         }
-                        div { class: "col-span-2 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-13 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_qd_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_qd_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-7 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_qd_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_qd_pp().cumul_enfant() }
-                            Output { signal: result.option_qd_pp().cumul_etat() }
-                            Output { signal: result.option_qd_pp().cumul_notaire() }
+                        div { class: "col-span-22 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_qd_pp().cumul_enfant() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_qd_pp().cumul_etat() }
+                            }
+                            div { class: "col-span-2",
+                                Output { signal: result.option_qd_pp().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_qd_pp(),
+                            }
                         }
                     }
                 }

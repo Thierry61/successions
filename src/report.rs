@@ -600,7 +600,7 @@ pub fn Rapport(
                 ul {
                     li { class: "flex flex-row gap-6",
                         ul { class: "ml-5 list-disc list-outside",
-                            li { "Actifs à l'origine :" }
+                            li { "Actif net de départ :" }
                             li { "Option 100% US :" }
                             li { "Option 1/4 PP :" }
                             li { "Option 1/4 PP - 3/4 US :" }
