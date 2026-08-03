@@ -49,9 +49,10 @@ fn CheckOption(show_report: ReadSignal<bool>, is_ok: ReadSignal<bool>) -> Elemen
 fn Fieldset(
     legend: &'static str,
     optional: &'static str,
-    center: bool,
+    center: Option<bool>,
     children: Element,
 ) -> Element {
+    let center = center.unwrap_or(false);
     rsx! {
         fieldset {
             class: "bg-blue-100 dark:bg-blue-600 border-t border-l border-r border-blue-300 dark:border-blue-800",
@@ -400,13 +401,10 @@ pub fn MainPart(cookies: String) -> Element {
                 }
             }
             div { class: "ml-2 mb-2 flex flex-wrap gap-4",
-                Fieldset {
-                    legend: "Données du couple",
-                    optional: "",
-                    center: false,
+                Fieldset { legend: "Données du couple", optional: "",
                     div {
                         id: "données-couple",
-                        class: "w-100 pl-2 pb-1 grid grid-cols-4",
+                        class: "w-99 pl-2 pb-1 grid grid-cols-4",
                         div { class: "col-span-2", "" }
                         div { class: "pl-5 py-1", "Vous" }
                         div { class: "pl-2 py-1", "Conjoint" }
@@ -462,8 +460,8 @@ pub fn MainPart(cookies: String) -> Element {
                         }
                     }
                 }
-                Fieldset { legend: "Options", optional: "", center: false,
-                    div { class: "w-100 py-1 grid grid-cols-1",
+                Fieldset { legend: "Options", optional: "",
+                    div { class: "w-99 py-1 grid grid-cols-1",
                         Checkbox {
                             id: "forfait-mobilier",
                             lab: "Forfait biens mobiliers",
@@ -505,9 +503,9 @@ pub fn MainPart(cookies: String) -> Element {
                 }
                 // Avant l'ajout de la colonne Vérif il y avait 7 colonnes décomposées en 1 + 2 + 1 + 3.
                 // Cette nouvelle colonne est moitié plus petite que les autres et a donc une taille
-                // approximative de 1/7/2. Tout a été multiplié par 7 et après tatonnement la meilleure
+                // approximative de la moitié de 1/7. Tout a été multiplié par 7 et après tatonnement la meilleure
                 // décomposition semble être : 49 = 7 + 13 + 7 + 22.
-                Fieldset { legend: "Résultats", optional: "", center: false,
+                Fieldset { legend: "Résultats", optional: "",
                     div {
                         id: "résultats",
                         class: "sm:px-2 px-0 pb-2 grid grid-cols-49 gap-x-0 sm:gap-x-2 gap-y-0",
