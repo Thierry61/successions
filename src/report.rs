@@ -51,7 +51,7 @@ fn Nb(num: ReadSignal<i32>) -> Element {
 
 // Blanc non sécable (utile avant un ":")
 #[component]
-fn Nbsp() -> Element {
+pub fn Nbsp() -> Element {
     rsx! { "\u{00a0}" }
 }
 

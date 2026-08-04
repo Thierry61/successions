@@ -6,11 +6,9 @@ body {
     height: 100%;
 }
 
-/* min-width rule is needed to leave room for most right tooltip
-(removed because it created a permanent white band on the right of the page,
-without it the white band is only present when this toolitp is active) */
+/* min-width rule is needed to avoid a white band on the right of the page  */
 body {
-    /* min-width: 620px; */
+    min-width: 384px;
 }
 
 /* Remove the spin buttons from number input fields in WebKit and Mozilla browsers */
