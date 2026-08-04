@@ -4,8 +4,7 @@ pub mod data;
 pub use crate::data::compute;
 mod report;
 mod ui;
-use report::Nbsp;
-use ui::MainPart;
+use ui::{MainPart, Nbsp};
 
 static TAILWIND: Asset = asset!("/assets/tailwind.css");
 static MAIN_CSS: Asset = asset!("/assets/main.css");

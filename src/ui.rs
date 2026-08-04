@@ -8,6 +8,12 @@ use crate::data::{
 };
 use crate::report::{format_num, Rapport};
 
+// Blanc non sécable (utile avant un ":" par exemple)
+#[component]
+pub fn Nbsp() -> Element {
+    rsx! { "\u{00a0}" }
+}
+
 // Croix en rouge
 #[component]
 fn RedX() -> Element {
@@ -237,19 +243,19 @@ fn Output(signal: ReadSignal<i32>) -> Element {
 #[component]
 fn InputWithLabel(
     id: &'static str,
-    lab: &'static str,
     tooltip: &'static str,
     signal: WriteSignal<i32>,
     is_nb_enfants: Option<bool>,
+    children: Element,
 ) -> Element {
     rsx! {
         div {
             div {
-                class: "w-47 px-2 py-1 flex flex-row justify-between bg-blue-100 dark:bg-blue-600 rounded-lg drop-shadow-md",
+                class: "w-47 pl-2 pr-1 py-1 flex flex-row justify-between bg-blue-100 dark:bg-blue-600 rounded-lg drop-shadow-md",
                 class: "border border-blue-300 dark:border-blue-800",
                 div { class: if !tooltip.is_empty() { "tooltip-top tooltip" },
                     span { class: "tooltip-text", {tooltip} }
-                    {lab}
+                    {children}
                 }
                 Input {
                     id,
@@ -363,46 +369,54 @@ pub fn MainPart(cookies: String) -> Element {
             div { id: "inputs", class: "m-2 flex flex-wrap gap-3",
                 InputWithLabel {
                     id: "nb-enfants",
-                    lab: "Nombre d'enfants",
                     tooltip: "Nombre d'enfants communs du couple, doit être supérieur ou égal à 1.",
                     signal: input.nb_enfants(),
                     is_nb_enfants: true,
+                    "Nombre d'enfants"
                 }
                 InputWithLabel {
                     id: "RP",
-                    lab: "Résidence principale",
                     tooltip: "Pour abattement de 20% dans le calcul des droits (plan fiscal).",
                     signal: input.residence_principale(),
+                    "Résidence principale"
                 }
                 InputWithLabel {
                     id: "placements",
-                    lab: "Placements hors AV/PER",
                     tooltip: "Placements sauf AV et PER qui ont une fiscalité spécifique et une éventuelle récompense à prendre en compte.",
                     signal: input.placements(),
+                    "Placements"
+                    br {}
+                    "hors AV/PER"
                 }
                 InputWithLabel {
                     id: "dettes",
-                    lab: "Dettes et impôts",
                     tooltip: "Dettes de la communauté, y compris les impôts restants à payer.",
                     signal: input.dettes(),
+                    "Dettes et impôts"
                 }
                 InputWithLabel {
                     id: "biens-meublants",
-                    lab: "Biens meublants",
                     tooltip: "Intégrés dans l'actif de communauté uniquement sur le plan civil si forfait mobilier ou sur les 2 plans (fiscal et civil) sinon",
                     signal: input.biens_meublants(),
+                    "Biens"
+                    br {}
+                    "meublants"
                 }
                 InputWithLabel {
                     id: "frais-funeraires",
-                    lab: "Frais funéraires réels",
                     tooltip: "Frais funéraire réels déduits de l'actif successoral net (plan civil), par opposition au forfait de 1500€ déduit sur le plan fiscal.",
                     signal: input.frais_funeraires(),
+                    "Frais"
+                    Nbsp {}
+                    "funéraires"
+                    br {}
+                    "réels"
                 }
                 InputWithLabel {
                     id: "donations-partages",
-                    lab: "Donations partages",
                     tooltip: "Donations-partages de moins de 15 ans, conjonctives, égalitaires et hors dons Sarkozy (plan fiscal).",
                     signal: input.donations_partages(),
+                    "Donations partages"
                 }
             }
             div { class: "ml-2 flex flex-wrap gap-x-3.25 gap-y-2.5",
