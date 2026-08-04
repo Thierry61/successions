@@ -1,11 +1,48 @@
 use dioxus::prelude::*;
+use dioxus_icons::lucide::{Check, X};
 
 use crate::data::history::History;
 use crate::data::{
-    calcul_biens_meublants, HeritierStateStoreExt, InputState, InputStateStoreExt,
-    OptionStateStoreExt, ResultState, ResultStateStoreExt, DEFAUT_NB_ENFANTS,
+    calcul_biens_meublants, CheckStateStoreExt, HeritierStateStoreExt, InputState,
+    InputStateStoreExt, OptionStateStoreExt, ResultState, ResultStateStoreExt, DEFAUT_NB_ENFANTS,
 };
 use crate::report::{format_num, Rapport};
+
+// Croix en rouge
+#[component]
+fn RedX() -> Element {
+    rsx! {
+        div { class: "pt-1 pl-2 text-red-600 dark:text-red-400",
+            X { class: "size-5", stroke_width: 3 }
+        }
+    }
+}
+
+// Check mark en vert
+#[component]
+fn GreenCheck() -> Element {
+    rsx! {
+        div { class: "pt-1 pl-2 text-green-600 dark:text-green-400",
+            Check { class: "size-5", stroke_width: 3 }
+        }
+    }
+}
+
+// Vérification du total distribué dans une option
+#[component]
+fn CheckOption(show_report: ReadSignal<bool>, is_ok: ReadSignal<bool>) -> Element {
+    rsx! {
+        div { class: "hidden xs:block",
+            if !*show_report.read() {
+                div {}
+            } else if *is_ok.read() {
+                GreenCheck {}
+            } else {
+                RedX {}
+            }
+        }
+    }
+}
 
 // Gestion d'un fieldset:
 // - la légende peut être centrée ou alignée à gauche
@@ -14,9 +51,10 @@ use crate::report::{format_num, Rapport};
 fn Fieldset(
     legend: &'static str,
     optional: &'static str,
-    center: bool,
+    center: Option<bool>,
     children: Element,
 ) -> Element {
+    let center = center.unwrap_or(false);
     rsx! {
         fieldset {
             class: "bg-blue-100 dark:bg-blue-600 border-t border-l border-r border-blue-300 dark:border-blue-800",
@@ -41,7 +79,7 @@ fn Fieldset(
 fn Checkbox(
     id: &'static str,
     lab: &'static str,
-    tooltip: &'static str,
+    tooltip: ReadSignal<String>,
     signal: WriteSignal<bool>,
     disabled: Option<Signal<bool>>,
 ) -> Element {
@@ -56,11 +94,6 @@ fn Checkbox(
                     let new_val = !*signal.read();
                     // Ecrit le signal et ajoute une entrée dans la pile des undo
                     use_context::<Store<History>>().write().add_bool(id, signal, new_val);
-                    // TODO: lorsqu'on sort du forfait mobilier il faudrait créer un nouveau type
-                    // d'entrée dans la pile des undo combinant la valeur du checkbox et la valeur
-                    // du champ biens meublants car dans l'état actuel le undo double la valeur de
-                    // ce champ au lieu de remettre la valeur d'origine.
-                    // (mais ce n'est pas prioritaire)
                 },
                 checked: signal,
                 disabled,
@@ -192,7 +225,7 @@ fn Output(signal: ReadSignal<i32>) -> Element {
     let num = format_num(*signal.read());
     rsx! {
         input {
-            class: "w-18 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-2",
+            class: "w-17 h-5 my-1 mx-0.75 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-1 xs:ml-2",
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
             class: "remove-arrow",
             disabled: true,
@@ -208,7 +241,6 @@ fn InputWithLabel(
     tooltip: &'static str,
     signal: WriteSignal<i32>,
     is_nb_enfants: Option<bool>,
-    disabled: Option<Signal<bool>>,
 ) -> Element {
     rsx! {
         div {
@@ -223,7 +255,6 @@ fn InputWithLabel(
                     id,
                     signal,
                     is_nb_enfants: is_nb_enfants == Some(true),
-                    disabled,
                 }
             }
         }
@@ -252,24 +283,17 @@ pub fn MainPart(cookies: String) -> Element {
     let mut show_report = use_signal(|| false);
     // Indique si l'option deces_survivant_apres_70_ans est désactivée
     let mut deces_survivant_apres_70_ans_disabled = use_signal(|| false);
-    // Indique si le champ biens_meublants est désactivé
-    let mut biens_meublants_disabled = use_signal(|| false);
-    // Mémorise la valeur précédente du forfait mobilier, le but est détecter quand on sort de ce mode
-    let mut forfait_mobilier_previous = use_signal(|| false);
+    // Tooltip du forfait mobilier fiscal
+    let mut tooltip_forfait_mobilier = use_signal(String::new);
     // Gére les dépendances inter-champs
     use_effect(move || {
-        // Si forfait mobilier est coché alors les biens meublants sont maintenus à 5% de l'actif brut successoral
-        let forfait_mobilier = *input.forfait_mobilier().read();
-        if forfait_mobilier {
-            let residence_principale = *input.residence_principale().read();
-            let placements = *input.placements().read();
-            let dettes = *input.dettes().read();
-            input.biens_meublants().set(calcul_biens_meublants(
-                residence_principale,
-                placements,
-                dettes,
-            ));
-        }
+        // Calcul du forfait mobilier fiscal (formaté et affiché dans le tooltip)
+        let residence_principale = *input.residence_principale().read();
+        let placements = *input.placements().read();
+        let dettes = *input.dettes().read();
+        let forfait_mobilier = calcul_biens_meublants(residence_principale, placements, dettes);
+        let forfait_mobilier = format_num(forfait_mobilier);
+        tooltip_forfait_mobilier.set(format!("Forfait de 5% de l'actif successoral brut pour les biens meublants sur le plan fiscal (soit {forfait_mobilier} €)."));
         // Si le conjoint survivant (d'après l'ordre des décès) est déjà agé de plus de 70 ans
         // alors le flag deces_survivant_apres_70_ans est positionné à true et est rendu non modifiable
         let age_survivant = if *input.ordre_deces().read() {
@@ -282,29 +306,6 @@ pub fn MainPart(cookies: String) -> Element {
             deces_survivant_apres_70_ans_disabled.set(true);
         } else {
             deces_survivant_apres_70_ans_disabled.set(false);
-        }
-        // Désactive le champ biens meublants quand forfait mobilier est coché
-        *biens_meublants_disabled.write() = *input.forfait_mobilier().read();
-        // Assure que le couple a au moins un enfant
-        if *input.nb_enfants().read() < 1 {
-            *input.nb_enfants().write() = DEFAUT_NB_ENFANTS;
-        }
-        // Quand on sort du forfait mobilier il faut multiplier les biens meublants par 2
-        // car auparavant ils étaient ajoutés à l'actif successoral et maintenant ils sont
-        // ajoutés à l'actif de communauté. Le but est qu'ils représentent encore la même valeur.
-        let cur_forfait_mobilier = *input.forfait_mobilier().read();
-        let prev_forfait_mobilier = *forfait_mobilier_previous.read();
-        if prev_forfait_mobilier && !cur_forfait_mobilier {
-            let biens_meublants = *input.biens_meublants().read();
-            input.biens_meublants().set(2 * biens_meublants);
-        }
-        // Le champ biens meublants n'est mis à jour qu'au moment de la transition, car il faut
-        // pouvoir ensuite saisir d'autres valeurs dans ce champ.
-        // Nota: normalement ce n'est pas safe d'affecter une dépendance dans le use effect, mais
-        // dans le cas présent il n'y a pas récursion infinie car la valeur du flag précédent est
-        // remise à false.
-        if prev_forfait_mobilier != cur_forfait_mobilier {
-            forfait_mobilier_previous.set(cur_forfait_mobilier);
         }
     });
     // Historique des Undo/Redo
@@ -346,6 +347,9 @@ pub fn MainPart(cookies: String) -> Element {
                         li {
                             "Tous les éléments sont communs (enfants, biens, dettes et fonds ayant alimenté les placements et donations)."
                         }
+                        li {
+                            "Les donations-partages ont moins de 15 ans et sont conjonctives et égalitaires et hors dons Sarkozy."
+                        }
                         li { "Les versements sur les assurances-vie ont été effectués avant 70 ans." }
                         li {
                             "Les bénéficiaires des assurances-vie sont soit les enfants, soit le conjoint puis les enfants."
@@ -356,7 +360,7 @@ pub fn MainPart(cookies: String) -> Element {
                     }
                 }
             }
-            div { id: "inputs", class: "m-2 flex flex-wrap gap-4",
+            div { id: "inputs", class: "m-2 flex flex-wrap gap-3",
                 InputWithLabel {
                     id: "nb-enfants",
                     lab: "Nombre d'enfants",
@@ -385,9 +389,8 @@ pub fn MainPart(cookies: String) -> Element {
                 InputWithLabel {
                     id: "biens-meublants",
                     lab: "Biens meublants",
-                    tooltip: "Intégrés dans l'actif successoral uniquement sur le plan fiscal si forfait mobilier ou sur les 2 plans (fiscal et civil) sinon",
+                    tooltip: "Intégrés dans l'actif de communauté uniquement sur le plan civil si forfait mobilier ou sur les 2 plans (fiscal et civil) sinon",
                     signal: input.biens_meublants(),
-                    disabled: biens_meublants_disabled,
                 }
                 InputWithLabel {
                     id: "frais-funeraires",
@@ -402,14 +405,11 @@ pub fn MainPart(cookies: String) -> Element {
                     signal: input.donations_partages(),
                 }
             }
-            div { class: "ml-2 mb-2 flex flex-wrap gap-4",
-                Fieldset {
-                    legend: "Données du couple",
-                    optional: "",
-                    center: false,
+            div { class: "ml-2 flex flex-wrap gap-2.5",
+                Fieldset { legend: "Données du couple", optional: "",
                     div {
                         id: "données-couple",
-                        class: "w-100 pl-2 pb-1 grid grid-cols-4",
+                        class: "w-99 pl-2 pb-1 grid grid-cols-4",
                         div { class: "col-span-2", "" }
                         div { class: "pl-5 py-1", "Vous" }
                         div { class: "pl-2 py-1", "Conjoint" }
@@ -465,12 +465,12 @@ pub fn MainPart(cookies: String) -> Element {
                         }
                     }
                 }
-                Fieldset { legend: "Options", optional: "", center: false,
-                    div { class: "w-100 py-1 grid grid-cols-1",
+                Fieldset { legend: "Options", optional: "",
+                    div { class: "w-99 py-1 grid grid-cols-1",
                         Checkbox {
                             id: "forfait-mobilier",
                             lab: "Forfait biens mobiliers",
-                            tooltip: "Forfait de 5% de l'actif successoral brut pour les biens meublants.",
+                            tooltip: tooltip_forfait_mobilier,
                             signal: input.forfait_mobilier(),
                         }
                         Checkbox {
@@ -506,13 +506,18 @@ pub fn MainPart(cookies: String) -> Element {
                         }
                     }
                 }
-                Fieldset { legend: "Résultats", optional: "", center: false,
+                // Avant l'ajout de la colonne Vérif il y avait 7 colonnes décomposées en 1 + 2 + 1 + 3.
+                // Cette nouvelle colonne est moitié plus petite que les autres et a donc une taille
+                // approximative de la moitié de 1/7. Tout a été multiplié par 7 et après tatonnement la meilleure
+                // décomposition semble être : 49 = 7 + 13 + 7 + 22.
+                // En petit écran (largeur < xs) la décomposition devient 46 = 9 + 19 + 9 + 9
+                Fieldset { legend: "Résultats", optional: "",
                     div {
                         id: "résultats",
-                        class: "sm:px-2 px-0 pb-2 grid grid-cols-7 gap-x-0 sm:gap-x-2 gap-y-0",
-                        div { class: "mt-3",
+                        class: "sm:px-2 px-0 pb-2 grid grid-cols-46 xs:grid-cols-49 gap-x-0 sm:gap-x-2 gap-y-0",
+                        div { class: "col-span-9 xs:col-span-7 mt-3",
                             button {
-                                class: "px-4 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
+                                class: "px-2.5 xs:px-4 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
                                 class: "border border-green-400 dark:border-white rounded-lg drop-shadow-md",
                                 class: "transition duration-200",
                                 class: if animate_click() { "-translate-y-1 scale-110" },
@@ -540,12 +545,12 @@ pub fn MainPart(cookies: String) -> Element {
                                 "Calculer"
                             }
                         }
-                        div { class: "col-span-2",
+                        div { class: "col-span-18 xs:col-span-13",
                             Fieldset {
                                 legend: "1er décès",
                                 optional: "",
                                 center: true,
-                                div { class: "pl-2 grid grid-cols-2 items-stretch",
+                                div { class: "pl-2 xs:pl-3 grid grid-cols-2 items-stretch",
                                     div { class: "tooltip tooltip-top",
                                         span { class: "tooltip-text w-65!",
                                             "Valeur reçue en pleine-propriété par le conjoint survivant (hors usufruit), incluant les assurances-vie dont il est bénéficiaire."
@@ -554,7 +559,7 @@ pub fn MainPart(cookies: String) -> Element {
                                         br {}
                                         "survivant"
                                     }
-                                    div { class: "pl-1 tooltip tooltip-top",
+                                    div { class: "pl-1 xs:pl-2 tooltip tooltip-top",
                                         span { class: "tooltip-text w-65!",
                                             "Valeur reçue en pleine-propriété par chaque enfant (hors nue-propriété), incluant les assurances-vie dont il est bénéficiaire."
                                         }
@@ -565,12 +570,12 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div {
+                        div { class: "col-span-9 xs:col-span-7",
                             Fieldset {
                                 legend: "2ème",
                                 optional: "décès",
                                 center: true,
-                                div { class: "pl-2 tooltip tooltip-top",
+                                div { class: "pl-2 xs:pl-3 tooltip tooltip-top",
                                     span { class: "tooltip-text w-65!",
                                         "Valeur reçue en pleine-propriété par chaque enfant, incluant les assurances-vie dont il est bénéficiaire."
                                     }
@@ -580,13 +585,13 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div { class: "col-span-3",
+                        div { class: "col-span-9 xs:col-span-22",
                             Fieldset {
-                                legend: "Cumul des 2 décès",
-                                optional: "",
+                                legend: "Cumul",
+                                optional: "des 2 décès",
                                 center: true,
-                                div { class: "pl-2 grid grid-cols-3 items-end",
-                                    div { class: "tooltip tooltip-top",
+                                div { class: "pl-2 xs:pl-3 grid grid-cols-2 xs:grid-cols-7 items-end",
+                                    div { class: "tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text w-65!",
                                             "Valeur reçue en pleine-propriété par chaque enfant, incluant les assurances-vie dont il est bénéficiaire."
                                         }
@@ -594,91 +599,139 @@ pub fn MainPart(cookies: String) -> Element {
                                         br {}
                                         "enfant"
                                     }
-                                    div { class: "pl-1 tooltip tooltip-top",
+                                    div { class: "hidden! xs:block! pl-1 tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text", "Impôts perçus par l'Etat." }
                                         "Etat"
                                     }
-                                    div { class: "pl-2 tooltip tooltip-top",
+                                    div { class: "hidden! xs:block! pl-1 xs:pl-2 tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text w-35!",
                                             "Emoluments perçus par le notaire."
                                         }
                                         "Notaire"
                                     }
+                                    div { class: "hidden! xs:block! pl-1 tooltip tooltip-top",
+                                        span { class: "tooltip-text w-45!",
+                                            "Vérification que le total distribué aux enfants, à l'Etat et au notaire est égal à l'actif net de départ."
+                                        }
+                                        "Vérif."
+                                        br {}
+                                        "total"
+                                    }
                                 }
                             }
                         }
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option totalité en usufruit choisie par le conjoint survivant."
                             }
                             "100% US"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_totalite_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_totalite_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_totalite_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_totalite_us().cumul_enfant() }
-                            Output { signal: result.option_totalite_us().cumul_etat() }
-                            Output { signal: result.option_totalite_us().cumul_notaire() }
+                        div { class: "col-span-9 xs:col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_totalite_us().cumul_enfant() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_totalite_us().cumul_etat() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_totalite_us().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_totalite_us(),
+                            }
                         }
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété choisie par le conjoint survivant."
                             }
                             "¼ PP"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_1_4_pp().cumul_enfant() }
-                            Output { signal: result.option_1_4_pp().cumul_etat() }
-                            Output { signal: result.option_1_4_pp().cumul_notaire() }
+                        div { class: "col-span-9 xs:col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp().cumul_enfant() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_1_4_pp().cumul_etat() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_1_4_pp().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_1_4_pp(),
+                            }
                         }
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété et 3/4 en usufruit choisie par le conjoint survivant."
                             }
                             "¼ PP ¾ US"
                         }
-                        div { class: "col-span-2 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp_3_4_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp_3_4_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp_3_4_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-x border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_1_4_pp_3_4_us().cumul_enfant() }
-                            Output { signal: result.option_1_4_pp_3_4_us().cumul_etat() }
-                            Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
+                        div { class: "col-span-9 xs:col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_1_4_pp_3_4_us().cumul_enfant() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_1_4_pp_3_4_us().cumul_etat() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_1_4_pp_3_4_us(),
+                            }
                         }
                         // Tooltip top au lieu de right pour éviter une bande blanche en bas
-                        div { class: "ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text w-50!",
                                 "Option quotité disponible en pleine propriété choisie par le conjoint survivant."
                             }
                             "QD PP"
                         }
-                        div { class: "col-span-2 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_qd_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_qd_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-1 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_qd_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-3 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-3 items-stretch",
-                            Output { signal: result.option_qd_pp().cumul_enfant() }
-                            Output { signal: result.option_qd_pp().cumul_etat() }
-                            Output { signal: result.option_qd_pp().cumul_notaire() }
+                        div { class: "col-span-9 xs:col-span-22 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
+                            div { class: "col-span-2",
+                                Output { signal: result.option_qd_pp().cumul_enfant() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_qd_pp().cumul_etat() }
+                            }
+                            div { class: "hidden xs:block col-span-2",
+                                Output { signal: result.option_qd_pp().cumul_notaire() }
+                            }
+                            CheckOption {
+                                show_report,
+                                is_ok: result.check().option_qd_pp(),
+                            }
                         }
                     }
                 }

@@ -6,9 +6,11 @@ body {
     height: 100%;
 }
 
-/* min-width rule is needed to leave room for most right tooltip */
+/* min-width rule is needed to leave room for most right tooltip
+(removed because it created a permanent white band on the right of the page,
+without it the white band is only present when this toolitp is active) */
 body {
-    min-width: 620px;
+    /* min-width: 620px; */
 }
 
 /* Remove the spin buttons from number input fields in WebKit and Mozilla browsers */
@@ -100,12 +102,16 @@ body {
 }
 /*
   Show the tooltip text when you mouse over the tooltip container.
-  Tooltips are applicable on element with tooltip class
+  Tooltips are applicable on element with tooltip class,
+  but not on small screens (not ideal for mobile apps because mobile screens
+  lack hover states, have very limited space, and rely on touch interactions)
 */
-.tooltip:hover .tooltip-text {
-    /* Restaure normal font in case the container uses a bold font */
-    font-weight: 400;
-    display: inline;
-    visibility: visible;
-    opacity: 1;
+@media (width >= 30rem) {
+    .tooltip:hover .tooltip-text {
+        /* Restaure normal font in case the container uses a bold font */
+        font-weight: 400;
+        display: inline;
+        visibility: visible;
+        opacity: 1;
+    }
 }

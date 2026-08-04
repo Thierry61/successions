@@ -6,10 +6,6 @@ use crate::data::{
     ResultStateStoreExt,
 };
 
-// TODO:
-// - afficher le total net de départ (actif net de communauté + part du survivant hors successions)
-// - comparer avec un tableau récapitulatif des options avec total enfants, total état, total notaire, total général
-
 // Formate un nombre avec des blancs comme séparateurs de milliers
 pub fn format_num(val: i32) -> String {
     val.to_string()
@@ -30,7 +26,10 @@ fn Euros(val: ReadSignal<i32>, class: Option<&'static str>) -> Element {
     let class = class.unwrap_or_default();
     rsx! {
         li { class: "text-right", class: "{class}",
-            span { "{num} €" }
+            span {
+                "{num}"
+                span { class: "hidden xs:inline", " €" }
+            }
         }
     }
 }
@@ -46,6 +45,24 @@ fn Nb(num: ReadSignal<i32>) -> Element {
                 "{num}"
                         // span { class: "opacity-0", " €" }
             }
+        }
+    }
+}
+
+// Blanc non sécable (utile avant un ":")
+#[component]
+fn Nbsp() -> Element {
+    rsx! { "\u{00a0}" }
+}
+
+// Composant h1 en font-bold avec un libellé terminé par un blanc non sécable suivi de ':'
+#[component]
+fn H1(children: Element) -> Element {
+    rsx! {
+        h1 { class: "font-bold",
+            {children}
+            Nbsp {}
+            ":"
         }
     }
 }
@@ -78,9 +95,9 @@ fn AssuranceVie(
 ) -> Element {
     rsx! {
         div {
-            div { class: "flex flex-row gap-6",
-                ul { class: "ml-5 list-disc list-outside",
-                    li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
+            div { class: "flex flex-row gap-4",
+                ul {
+                    li { class: "text-right opacity-0", "Bénéficiaire : " }
                     li { "Capitaux décès bruts :" }
                     li { "Abattement :" }
                     li { "Part taxable :" }
@@ -149,8 +166,8 @@ fn Per(
     rsx! {
         div {
             div { class: "flex flex-row gap-6",
-                ul { class: "ml-5 list-disc list-outside",
-                    li { class: "list-none text-right opacity-0", "Bénéficiaire : " }
+                ul {
+                    li { class: "text-right opacity-0", "Bénéficiaire : " }
                     HilightCredit {
                         li { "Capitaux décès nets :" }
                     }
@@ -186,13 +203,13 @@ fn Per(
 #[component]
 fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Element {
     rsx! {
-        div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
-            h1 { class: "font-bold mt-2", "Répartition au 1er décès :" }
+        div { class: "pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+            H1 { "Répartition au 1er décès" }
             div {
-                div { class: "flex flex-row gap-6",
-                    ul { class: "ml-5 list-disc list-outside",
-                        li { class: "list-none text-right opacity-0", "Héritier : " }
-                        li { "Héritage en pleine propriété :" }
+                div { class: "mb-2 flex flex-row gap-2",
+                    ul {
+                        li { class: "text-right opacity-0", "Héritier : " }
+                        li { "Héritage en pleine propr. :" }
                         li { "Héritage en nue propriété :" }
                         li { "Héritage en usufruit :" }
                         li { "Part civile :" }
@@ -206,18 +223,18 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                                 li { "Emoluments de partage :" }
                             }
                             if !*snapshot.ignorer_declaration_succession().read() {
-                                li { "Emoluments de déclaration de succession :" }
+                                li { "Emoluments décl. de succ. :" }
                             }
                         }
                         HilightCredit {
                             li { "Héritage net :" }
                             li { "Flux financier :" }
-                            li { "Flux financier avec AV et PER :" }
+                            li { "Flux financier avec AV/PER :" }
                         }
                     }
                     ul {
                         li { class: "text-center",
-                            div { "Chaque enfant" }
+                            div { "Chaque enf." }
                         }
                         Euros { val: option.premier_enfant().heritage_pp() }
                         Euros { val: option.premier_enfant().heritage_np() }
@@ -298,11 +315,11 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                     }
                 }
             }
-            h1 { class: "font-bold mt-2", "Répartition au 2ème décès :" }
+            H1 { "Répartition au 2ème décès" }
             div {
-                div { class: "flex flex-row gap-6",
-                    ul { class: "ml-5 list-disc list-outside",
-                        li { class: "list-none text-right opacity-0", "Héritier : " }
+                div { class: "flex flex-row gap-2",
+                    ul {
+                        li { class: "text-right opacity-0", "Héritier : " }
                         li { "Extinction usufruit :" }
                         li { "Part civile :" }
                         li { "Part fiscale :" }
@@ -315,7 +332,7 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                                 li { "Emoluments de partage :" }
                             }
                             if !*snapshot.ignorer_declaration_succession().read() {
-                                li { "Emoluments de déclaration de succession :" }
+                                li { "Emoluments décl. de succ. :" }
                             }
                         }
                         HilightCredit {
@@ -371,7 +388,7 @@ fn OptionChoisie(snapshot: Store<InputState>, option: Store<OptionState>) -> Ele
                         HilightCredit {
                             Euros { val: option.deuxieme_total().flux_financier() }
                             Euros { val: option.deuxieme_total().flux_financier_avec_av() }
-                            Euros { val: option.cumul_total() }
+                            Euros { val: option.cumul_enfants() }
                         }
                     }
                 }
@@ -391,31 +408,28 @@ pub fn Rapport(
             class: "text-gray-900 dark:text-white",
             class: if show_report() { " block" } else { "hidden" },
             open: "false",
-            summary { class: "m-2 text-sm leading-6 font-semibold select-none", "Détails du calcul :" }
+            summary { class: "m-2 text-sm leading-6 font-bold select-none",
+                span { class: "underline", "Détails du calcul" }
+                " :"
+            }
             div { class: "px-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "Données d'entrée :" }
-                div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
-                    div { class: "flex flex-row gap-4",
-                        ul { class: "ml-5 list-disc list-outside",
+                H1 { "Données d'entrée" }
+                div {
+                    div { class: "flex flex-row gap-4 justify-items-start",
+                        ul {
                             li { "Nombre d'enfants :" }
                             li { "Résidence principale :" }
                             li { "Placements hors AV et PER :" }
                             li { "Dettes et impôts restant dus :" }
+                            li { "Biens meublants :" }
+                            li { "Frais funéraires réels :" }
+                            li { "Donations-partages :" }
                         }
                         ul {
                             Nb { num: snapshot.nb_enfants() }
                             Euros { val: snapshot.residence_principale() }
                             Euros { val: snapshot.placements() }
                             Euros { val: snapshot.dettes() }
-                        }
-                    }
-                    div { class: "flex flex-row gap-4",
-                        ul { class: "ml-5 list-disc list-outside",
-                            li { "Biens meublants :" }
-                            li { "Frais funéraires réels :" }
-                            li { "Donations-partages :" }
-                        }
-                        ul {
                             Euros { val: snapshot.biens_meublants() }
                             Euros { val: snapshot.frais_funeraires() }
                             Euros { val: snapshot.donations_partages() }
@@ -425,8 +439,8 @@ pub fn Rapport(
                 br {}
                 div {
                     div { class: "flex flex-row gap-6",
-                        ul { class: "ml-5 list-disc list-outside",
-                            li { class: "list-none text-right opacity-0", "Epoux : " }
+                        ul {
+                            li { class: "text-right opacity-0", "Epoux : " }
                             li { "Age des époux :" }
                             li { "AV au bénéfice du conjoint :" }
                             li { "AV au bénéfice des enfants :" }
@@ -449,9 +463,9 @@ pub fn Rapport(
                     }
                 }
                 br {}
-                div { class: "w-160 grid grid-cols-2 gap-2 justify-items-start",
-                    div { class: "flex flex-row gap-4",
-                        ul { class: "ml-5 list-disc list-outside",
+                div {
+                    div { class: "grid grid-cols-1 justify-items-start",
+                        ul {
                             li {
                                 "Forfait biens mobiliers "
                                 if !*snapshot.forfait_mobilier().read() {
@@ -476,11 +490,6 @@ pub fn Rapport(
                                 }
                                 " 70 ans."
                             }
-                        }
-                    }
-                    div { class: "flex flex-row gap-4",
-                        ul { class: "ml-5 list-disc list-outside",
-
                             li {
                                 "Dispense de récompense "
                                 if !*snapshot.dispense_recompense().read() {
@@ -509,42 +518,48 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "Succession au 1er décès :" }
+                H1 { "Succession au 1er décès" }
                 div {
-                    div { class: "flex flex-row gap-6",
-                        ul { class: "ml-5 list-disc list-outside",
-                            li { class: "list-none text-right opacity-0", "Plan : " }
+                    div { class: "flex flex-row gap-5",
+                        ul {
+                            li { class: "text-right opacity-0", "Plan : " }
                             li { "Actif brut de communauté :" }
+                            li { "Biens meublants :" }
                             li { "Actif net de communauté :" }
                             li { "Récompense due par le survivant :" }
                             li { "Récompense due par le défunt :" }
                             li { "Solde de récompenses :" }
-                            li { "Actif net de communauté après récompenses :" }
+                            li { "Actif net communauté après récomp. :" }
                             li { "Actif brut de succession :" }
+                            li { "Forfait mobilier :" }
                             li { "Actif net de succession :" }
                             li { "Part du survivant hors succession :" }
                         }
                         ul {
                             li { class: "text-center", "Civil" }
                             Euros { val: result.premier_deces_civil().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_civil().biens_meublants() }
                             Euros { val: result.premier_deces_civil().actif_net_communaute() }
                             Euros { val: result.premier_deces_civil().recompense_due_par_le_survivant() }
                             Euros { val: result.premier_deces_civil().recompense_due_par_le_defunt() }
                             Euros { val: result.premier_deces_civil().solde_recompenses() }
                             Euros { val: result.premier_deces_civil().actif_net_communaute_ajuste() }
                             Euros { val: result.premier_deces_civil().actif_brut_succession() }
+                            Euros { val: result.premier_deces_civil().forfait_mobilier() }
                             Euros { val: result.premier_deces_civil().actif_net_succession() }
                             Euros { val: result.premier_deces_civil().part_survivant_hors_succession() }
                         }
                         ul {
                             li { class: "text-center", "Fiscal" }
                             Euros { val: result.premier_deces_fiscal().actif_brut_communaute() }
+                            Euros { val: result.premier_deces_fiscal().biens_meublants() }
                             Euros { val: result.premier_deces_fiscal().actif_net_communaute() }
                             Euros { val: result.premier_deces_fiscal().recompense_due_par_le_survivant() }
                             Euros { val: result.premier_deces_fiscal().recompense_due_par_le_defunt() }
                             Euros { val: result.premier_deces_fiscal().solde_recompenses() }
                             Euros { val: result.premier_deces_fiscal().actif_net_communaute_ajuste() }
                             Euros { val: result.premier_deces_fiscal().actif_brut_succession() }
+                            Euros { val: result.premier_deces_fiscal().forfait_mobilier() }
                             Euros { val: result.premier_deces_fiscal().actif_net_succession() }
                             Euros { val: result.premier_deces_fiscal().part_survivant_hors_succession() }
                         }
@@ -552,7 +567,7 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "Assurances-vie dénouées au 1er décès :" }
+                H1 { "Assurances-vie dénouées au 1er décès" }
                 AssuranceVie {
                     enfant: result.premier_av_enfant(),
                     survivant: result.premier_av_survivant(),
@@ -561,7 +576,7 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold", "PER dénoués au 1er décès :" }
+                H1 { "PER dénoués au 1er décès" }
                 Per {
                     enfant_ou_survivant: result.premier_per(),
                     affiche_survivant: true,
@@ -569,9 +584,7 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold",
-                    "Assurances-vie et PER soumis à la fiscalité des AV dénoués au 2ème décès :"
-                }
+                H1 { "Assurances-vie et PER soumis à la fiscalité des AV dénoués au 2ème décès" }
                 AssuranceVie {
                     enfant: result.deuxieme_av_enfant(),
                     // Store bidon pour l'AV non affichée
@@ -581,36 +594,59 @@ pub fn Rapport(
                 }
             }
             div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
-                h1 { class: "font-bold",
-                    "PER soumis aux droits de succession dénoués au 2ème décès :"
-                }
+                H1 { "PER soumis aux droits de succession dénoués au 2ème décès" }
                 Per {
                     enfant_ou_survivant: result.deuxieme_per(),
                     affiche_survivant: false,
                     total: result.deuxieme_per_total(),
                 }
             }
+            div { class: "px-2 pt-2 text-sm leading-6 text-gray-600 dark:text-white",
+                H1 { "Vérification des totaux" }
+                ul {
+                    li { class: "flex flex-row gap-6",
+                        ul {
+                            li { "Actif net de départ :" }
+                            li { "Option 100% US :" }
+                            li { "Option 1/4 PP :" }
+                            li { "Option 1/4 PP - 3/4 US :" }
+                            li { "Option QD PP :" }
+                        }
+                        ul {
+                            Euros { val: result.total_a_repartir() }
+                            Euros { val: result.option_totalite_us().cumul_total() }
+                            Euros { val: result.option_1_4_pp().cumul_total() }
+                            Euros { val: result.option_1_4_pp_3_4_us().cumul_total() }
+                            Euros { val: result.option_qd_pp().cumul_total() }
+                        }
+                    }
+                }
+            }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option totalité en usufruit :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option totalité en usufruit" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_totalite_us() }
             }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option 1/4 en pleine propriété :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option 1/4 en pleine propriété" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_1_4_pp() }
             }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option 1/4 en pleine propriété - 3/4 en usufruit :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option 1/4 en pleine propriété - 3/4 en usufruit" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_1_4_pp_3_4_us() }
             }
             details { class: "p-2", open: "false",
-                summary { class: "text-sm leading-6 font-semibold text-gray-900 dark:text-white select-none",
-                    "Option quotité disponible en pleine propriété :"
+                summary { class: "text-sm leading-6 font-bold text-gray-900 dark:text-white select-none",
+                    span { class: "underline", "Option quotité disponible en pleine propriété" }
+                    " :"
                 }
                 OptionChoisie { snapshot, option: result.option_qd_pp() }
             }
