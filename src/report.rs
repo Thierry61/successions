@@ -5,6 +5,7 @@ use crate::data::{
     InputStateStoreExt, OptionState, OptionStateStoreExt, PremierDecesStoreExt, ResultState,
     ResultStateStoreExt,
 };
+use crate::ui::Nbsp;
 
 // Formate un nombre avec des blancs comme séparateurs de milliers
 pub fn format_num(val: i32) -> String {
@@ -47,12 +48,6 @@ fn Nb(num: ReadSignal<i32>) -> Element {
             }
         }
     }
-}
-
-// Blanc non sécable (utile avant un ":")
-#[component]
-pub fn Nbsp() -> Element {
-    rsx! { "\u{00a0}" }
 }
 
 // Composant h1 en font-bold avec un libellé terminé par un blanc non sécable suivi de ':'
