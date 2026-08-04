@@ -92,10 +92,13 @@ fn Body(children: Element) -> Element {
                             span { class: "tooltip-text w-40!", "Code source déposé dans GitHub." }
                         }
                     }
-                    span { class: "font-bold", "Simulation de successions - {PKG_VERSION}" }
+                    span { class: "font-bold",
+                        "Simulation de successions"
+                        span { class: "hidden xs:inline", " - {PKG_VERSION}" }
+                    }
                     // TODO: ajouter un bouton pour activer/désactiver les tooltips
                     button {
-                        class: "rounded-md border border-blue-400 bg-blue-50 dark:bg-blue-600 px-3 py-1 m-3",
+                        class: "rounded-md border border-blue-400 bg-blue-50 dark:bg-blue-600 px-3 py-1 m-2",
                         class: "tooltip-left tooltip",
                         onclick: move |_| dark.toggle(),
                         img {
@@ -113,9 +116,7 @@ fn Body(children: Element) -> Element {
                 id: "footer",
                 class: "w-full bg-blue-100 dark:bg-blue-900 justify-self-end",
                 class: "flex flex-row items-center justify-between",
-                span { class: "m-3 font-semibold",
-                    "Simulation non contractuelle et sans aucunes garanties !"
-                }
+                span { class: "m-3 font-semibold", "Simulation non contractuelle et sans garanties !" }
             }
         }
     }

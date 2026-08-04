@@ -14,8 +14,8 @@ pub const ABATTEMENT_AV: i32 = 152_500;
 pub const ABATTEMENT_DROITS: i32 = 100_000;
 pub const ABATTEMENT_PER: i32 = 30_500;
 
-// Précision à 5 € du fait de l'usage d'entiers au lieu de flottants
-pub const EPSILON: i32 = 5;
+// Précision à 10 € du fait de l'usage d'entiers au lieu de flottants
+pub const EPSILON: i32 = 10;
 
 // Crée un cookie ou le détruit si la valeur est la valeur par défaut de l'entrée
 // (plus exactement ajoute dans la variable js l'instruction javascript effectuant cette action)

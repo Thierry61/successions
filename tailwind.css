@@ -3,3 +3,8 @@
 
 /* To toggle dark mode, add the 'dark' class to the root element of your HTML document. */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Supplementary xs breakpoint (at 35rem = 560px) */
+@theme {
+  --breakpoint-xs: 35rem;
+}

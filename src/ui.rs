@@ -12,7 +12,7 @@ use crate::report::{format_num, Rapport};
 #[component]
 fn RedX() -> Element {
     rsx! {
-        div { class: "pt-1 pl-3 text-red-600 dark:text-red-400",
+        div { class: "pt-1 pl-2 text-red-600 dark:text-red-400",
             X { class: "size-5", stroke_width: 3 }
         }
     }
@@ -22,7 +22,7 @@ fn RedX() -> Element {
 #[component]
 fn GreenCheck() -> Element {
     rsx! {
-        div { class: "pt-1 pl-3 text-green-600 dark:text-green-400",
+        div { class: "pt-1 pl-2 text-green-600 dark:text-green-400",
             Check { class: "size-5", stroke_width: 3 }
         }
     }
@@ -32,12 +32,14 @@ fn GreenCheck() -> Element {
 #[component]
 fn CheckOption(show_report: ReadSignal<bool>, is_ok: ReadSignal<bool>) -> Element {
     rsx! {
-        if !*show_report.read() {
-            div {}
-        } else if *is_ok.read() {
-            GreenCheck {}
-        } else {
-            RedX {}
+        div { class: "hidden xs:block",
+            if !*show_report.read() {
+                div {}
+            } else if *is_ok.read() {
+                GreenCheck {}
+            } else {
+                RedX {}
+            }
         }
     }
 }
@@ -223,7 +225,7 @@ fn Output(signal: ReadSignal<i32>) -> Element {
     let num = format_num(*signal.read());
     rsx! {
         input {
-            class: "w-18 h-5 m-1 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-2",
+            class: "w-17 h-5 my-1 mx-0.75 pr-1 text-end bg-blue-50 dark:bg-blue-500 rounded-sm ml-1 xs:ml-2",
             class: "disabled:bg-gray-300 dark:disabled:bg-gray-500",
             class: "remove-arrow",
             disabled: true,
@@ -345,6 +347,9 @@ pub fn MainPart(cookies: String) -> Element {
                         li {
                             "Tous les éléments sont communs (enfants, biens, dettes et fonds ayant alimenté les placements et donations)."
                         }
+                        li {
+                            "Les donations-partages ont moins de 15 ans et sont conjonctives et égalitaires et hors dons Sarkozy."
+                        }
                         li { "Les versements sur les assurances-vie ont été effectués avant 70 ans." }
                         li {
                             "Les bénéficiaires des assurances-vie sont soit les enfants, soit le conjoint puis les enfants."
@@ -355,7 +360,7 @@ pub fn MainPart(cookies: String) -> Element {
                     }
                 }
             }
-            div { id: "inputs", class: "m-2 flex flex-wrap gap-4",
+            div { id: "inputs", class: "m-2 flex flex-wrap gap-3",
                 InputWithLabel {
                     id: "nb-enfants",
                     lab: "Nombre d'enfants",
@@ -400,7 +405,7 @@ pub fn MainPart(cookies: String) -> Element {
                     signal: input.donations_partages(),
                 }
             }
-            div { class: "ml-2 mb-2 flex flex-wrap gap-4",
+            div { class: "ml-2 flex flex-wrap gap-2.5",
                 Fieldset { legend: "Données du couple", optional: "",
                     div {
                         id: "données-couple",
@@ -505,13 +510,14 @@ pub fn MainPart(cookies: String) -> Element {
                 // Cette nouvelle colonne est moitié plus petite que les autres et a donc une taille
                 // approximative de la moitié de 1/7. Tout a été multiplié par 7 et après tatonnement la meilleure
                 // décomposition semble être : 49 = 7 + 13 + 7 + 22.
+                // En petit écran (largeur < xs) la décomposition devient 46 = 9 + 19 + 9 + 9
                 Fieldset { legend: "Résultats", optional: "",
                     div {
                         id: "résultats",
-                        class: "sm:px-2 px-0 pb-2 grid grid-cols-49 gap-x-0 sm:gap-x-2 gap-y-0",
-                        div { class: "col-span-7 mt-3",
+                        class: "sm:px-2 px-0 pb-2 grid grid-cols-46 xs:grid-cols-49 gap-x-0 sm:gap-x-2 gap-y-0",
+                        div { class: "col-span-9 xs:col-span-7 mt-3",
                             button {
-                                class: "px-4 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
+                                class: "px-2.5 xs:px-4 py-2 font-bold bg-green-100 text-green-700 dark:bg-green-600 dark:text-white",
                                 class: "border border-green-400 dark:border-white rounded-lg drop-shadow-md",
                                 class: "transition duration-200",
                                 class: if animate_click() { "-translate-y-1 scale-110" },
@@ -539,12 +545,12 @@ pub fn MainPart(cookies: String) -> Element {
                                 "Calculer"
                             }
                         }
-                        div { class: "col-span-13",
+                        div { class: "col-span-18 xs:col-span-13",
                             Fieldset {
                                 legend: "1er décès",
                                 optional: "",
                                 center: true,
-                                div { class: "pl-2 grid grid-cols-2 items-stretch",
+                                div { class: "pl-2 xs:pl-3 grid grid-cols-2 items-stretch",
                                     div { class: "tooltip tooltip-top",
                                         span { class: "tooltip-text w-65!",
                                             "Valeur reçue en pleine-propriété par le conjoint survivant (hors usufruit), incluant les assurances-vie dont il est bénéficiaire."
@@ -553,7 +559,7 @@ pub fn MainPart(cookies: String) -> Element {
                                         br {}
                                         "survivant"
                                     }
-                                    div { class: "pl-1 tooltip tooltip-top",
+                                    div { class: "pl-1 xs:pl-2 tooltip tooltip-top",
                                         span { class: "tooltip-text w-65!",
                                             "Valeur reçue en pleine-propriété par chaque enfant (hors nue-propriété), incluant les assurances-vie dont il est bénéficiaire."
                                         }
@@ -564,12 +570,12 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div { class: "col-span-7",
+                        div { class: "col-span-9 xs:col-span-7",
                             Fieldset {
                                 legend: "2ème",
                                 optional: "décès",
                                 center: true,
-                                div { class: "pl-2 tooltip tooltip-top",
+                                div { class: "pl-2 xs:pl-3 tooltip tooltip-top",
                                     span { class: "tooltip-text w-65!",
                                         "Valeur reçue en pleine-propriété par chaque enfant, incluant les assurances-vie dont il est bénéficiaire."
                                     }
@@ -579,12 +585,12 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div { class: "col-span-22",
+                        div { class: "col-span-9 xs:col-span-22",
                             Fieldset {
-                                legend: "Cumul des 2 décès",
-                                optional: "",
+                                legend: "Cumul",
+                                optional: "des 2 décès",
                                 center: true,
-                                div { class: "pl-2 grid grid-cols-7 items-end",
+                                div { class: "pl-2 xs:pl-3 grid grid-cols-2 xs:grid-cols-7 items-end",
                                     div { class: "tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text w-65!",
                                             "Valeur reçue en pleine-propriété par chaque enfant, incluant les assurances-vie dont il est bénéficiaire."
@@ -593,17 +599,17 @@ pub fn MainPart(cookies: String) -> Element {
                                         br {}
                                         "enfant"
                                     }
-                                    div { class: "pl-1 tooltip tooltip-top col-span-2",
+                                    div { class: "hidden! xs:block! pl-1 tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text", "Impôts perçus par l'Etat." }
                                         "Etat"
                                     }
-                                    div { class: "pl-2 tooltip tooltip-top col-span-2",
+                                    div { class: "hidden! xs:block! pl-1 xs:pl-2 tooltip tooltip-top col-span-2",
                                         span { class: "tooltip-text w-35!",
                                             "Emoluments perçus par le notaire."
                                         }
                                         "Notaire"
                                     }
-                                    div { class: "pl-2 tooltip tooltip-top",
+                                    div { class: "hidden! xs:block! pl-1 tooltip tooltip-top",
                                         span { class: "tooltip-text w-45!",
                                             "Vérification que le total distribué aux enfants, à l'Etat et au notaire est égal à l'actif net de départ."
                                         }
@@ -614,27 +620,27 @@ pub fn MainPart(cookies: String) -> Element {
                                 }
                             }
                         }
-                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option totalité en usufruit choisie par le conjoint survivant."
                             }
                             "100% US"
                         }
-                        div { class: "col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_totalite_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_totalite_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-7 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_totalite_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                        div { class: "col-span-9 xs:col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
                             div { class: "col-span-2",
                                 Output { signal: result.option_totalite_us().cumul_enfant() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_totalite_us().cumul_etat() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_totalite_us().cumul_notaire() }
                             }
                             CheckOption {
@@ -642,27 +648,27 @@ pub fn MainPart(cookies: String) -> Element {
                                 is_ok: result.check().option_totalite_us(),
                             }
                         }
-                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété choisie par le conjoint survivant."
                             }
                             "¼ PP"
                         }
-                        div { class: "col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-7 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                        div { class: "col-span-9 xs:col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
                             div { class: "col-span-2",
                                 Output { signal: result.option_1_4_pp().cumul_enfant() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_1_4_pp().cumul_etat() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_1_4_pp().cumul_notaire() }
                             }
                             CheckOption {
@@ -670,27 +676,27 @@ pub fn MainPart(cookies: String) -> Element {
                                 is_ok: result.check().option_1_4_pp(),
                             }
                         }
-                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text",
                                 "Option 1/4 en pleine propriété et 3/4 en usufruit choisie par le conjoint survivant."
                             }
                             "¼ PP ¾ US"
                         }
-                        div { class: "col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_1_4_pp_3_4_us().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_1_4_pp_3_4_us().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-7 border-x border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-x border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_1_4_pp_3_4_us().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                        div { class: "col-span-9 xs:col-span-22 border-x border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
                             div { class: "col-span-2",
                                 Output { signal: result.option_1_4_pp_3_4_us().cumul_enfant() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_1_4_pp_3_4_us().cumul_etat() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_1_4_pp_3_4_us().cumul_notaire() }
                             }
                             CheckOption {
@@ -699,27 +705,27 @@ pub fn MainPart(cookies: String) -> Element {
                             }
                         }
                         // Tooltip top au lieu de right pour éviter une bande blanche en bas
-                        div { class: "col-span-7 ml-1 tooltip-right tooltip",
+                        div { class: "col-span-9 xs:col-span-7 ml-1 tooltip-right tooltip",
                             span { class: "tooltip-text w-50!",
                                 "Option quotité disponible en pleine propriété choisie par le conjoint survivant."
                             }
                             "QD PP"
                         }
-                        div { class: "col-span-13 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
+                        div { class: "col-span-18 xs:col-span-13 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 items-stretch",
                             Output { signal: result.option_qd_pp().premier_survivant().flux_financier_avec_av() }
                             Output { signal: result.option_qd_pp().premier_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-7 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800",
+                        div { class: "col-span-9 xs:col-span-7 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800",
                             Output { signal: result.option_qd_pp().deuxieme_enfant().flux_financier_avec_av() }
                         }
-                        div { class: "col-span-22 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-7 items-stretch",
+                        div { class: "col-span-9 xs:col-span-22 border-b border-x rounded-b-lg border-blue-300 dark:border-blue-800 grid grid-cols-2 xs:grid-cols-7 items-stretch",
                             div { class: "col-span-2",
                                 Output { signal: result.option_qd_pp().cumul_enfant() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_qd_pp().cumul_etat() }
                             }
-                            div { class: "col-span-2",
+                            div { class: "hidden xs:block col-span-2",
                                 Output { signal: result.option_qd_pp().cumul_notaire() }
                             }
                             CheckOption {
