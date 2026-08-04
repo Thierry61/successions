@@ -4,6 +4,7 @@ pub mod data;
 pub use crate::data::compute;
 mod report;
 mod ui;
+use report::Nbsp;
 use ui::MainPart;
 
 static TAILWIND: Asset = asset!("/assets/tailwind.css");
@@ -116,7 +117,11 @@ fn Body(children: Element) -> Element {
                 id: "footer",
                 class: "w-full bg-blue-100 dark:bg-blue-900 justify-self-end",
                 class: "flex flex-row items-center justify-between",
-                span { class: "m-3 font-semibold", "Simulation non contractuelle et sans garanties !" }
+                span { class: "m-3 font-semibold",
+                    "Simulation non contractuelle et sans garanties"
+                    Nbsp {}
+                    "!"
+                }
             }
         }
     }

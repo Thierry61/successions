@@ -245,7 +245,7 @@ fn InputWithLabel(
     rsx! {
         div {
             div {
-                class: "w-48 px-2 py-1 flex flex-row justify-between bg-blue-100 dark:bg-blue-600 rounded-lg drop-shadow-md",
+                class: "w-47 px-2 py-1 flex flex-row justify-between bg-blue-100 dark:bg-blue-600 rounded-lg drop-shadow-md",
                 class: "border border-blue-300 dark:border-blue-800",
                 div { class: if !tooltip.is_empty() { "tooltip-top tooltip" },
                     span { class: "tooltip-text", {tooltip} }
@@ -405,11 +405,11 @@ pub fn MainPart(cookies: String) -> Element {
                     signal: input.donations_partages(),
                 }
             }
-            div { class: "ml-2 flex flex-wrap gap-2.5",
+            div { class: "ml-2 flex flex-wrap gap-x-3.25 gap-y-2.5",
                 Fieldset { legend: "Données du couple", optional: "",
                     div {
                         id: "données-couple",
-                        class: "w-99 pl-2 pb-1 grid grid-cols-4",
+                        class: "w-96.5 pl-2 pb-1 grid grid-cols-4",
                         div { class: "col-span-2", "" }
                         div { class: "pl-5 py-1", "Vous" }
                         div { class: "pl-2 py-1", "Conjoint" }
@@ -466,7 +466,7 @@ pub fn MainPart(cookies: String) -> Element {
                     }
                 }
                 Fieldset { legend: "Options", optional: "",
-                    div { class: "w-99 py-1 grid grid-cols-1",
+                    div { class: "w-96.5 py-1 grid grid-cols-1",
                         Checkbox {
                             id: "forfait-mobilier",
                             lab: "Forfait biens mobiliers",
@@ -513,6 +513,7 @@ pub fn MainPart(cookies: String) -> Element {
                 // En petit écran (largeur < xs) la décomposition devient 46 = 9 + 19 + 9 + 9
                 Fieldset { legend: "Résultats", optional: "",
                     div {
+                        class: "w-96 xs:w-full",
                         id: "résultats",
                         class: "sm:px-2 px-0 pb-2 grid grid-cols-46 xs:grid-cols-49 gap-x-0 sm:gap-x-2 gap-y-0",
                         div { class: "col-span-9 xs:col-span-7 mt-3",
